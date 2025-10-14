@@ -149,10 +149,20 @@ OpenJobs uses Supabase (PostgreSQL with advanced features). Set up your database
 2. Go to SQL Editor
 3. Run the contents of `migrations/001_create_job_posts.sql`
 
-Set the environment variables:
+Set the environment variables. You can either:
+
+**Option 1: Use .env file (Recommended)**
+```bash
+# Copy the sample .env file and edit with your values
+cp .env.example .env
+# Edit .env with your Supabase credentials
+```
+
+**Option 2: Export environment variables**
 ```bash
 export SUPABASE_URL="https://supabase.froste.eu"
-export SUPABASE_ANON_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyAgCiAgICAicm9sZSI6ICJhbm9uIiwKICAgICJpc3MiOiAic3VwYWJhc2UtZGVtbyIsCiAgICAiaWF0IjogMTY0MTc2OTIwMCwKICAgICJleHAiOiAxNzk5NTM1NjAwCn0.dc_X5iR_VP_qT0zsiyj_I_OZ2T9FtRU2BBNWN8Bu4GE"
+export SUPABASE_ANON_KEY="your-anon-key-here"
+export PORT=8080
 ```
 
 ### Docker Deployment
