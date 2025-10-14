@@ -25,7 +25,7 @@ type EURESConnector struct {
 
 // AdzunaJob represents a job from the Adzuna API
 type AdzunaJob struct {
-	ID          int    `json:"id"`
+	ID          string `json:"id"` // Changed from int to string
 	Title       string `json:"title"`
 	Description string `json:"description"`
 	Company     struct {
@@ -62,37 +62,35 @@ func NewEURESConnector(store *storage.JobStore) *EURESConnector {
 
 // FetchJobs fetches job listings from Adzuna API
 func (ec *EURESConnector) FetchJobs() ([]models.JobPost, error) {
+
 	// If credentials not configured, return demo data
 	if ec.appID == "" || ec.appKey == "" {
 		fmt.Println("⚠️  Adzuna credentials not configured, using demo data")
 		return ec.fetchDemoJobs(), nil
 	}
 
-	// Fetch real jobs from multiple European countries
-	countries := []string{"se", "dk", "no", "fi", "de", "nl"} // Sweden, Denmark, Norway, Finland, Germany, Netherlands
-	allJobs := []models.JobPost{}
-
-	for _, country := range countries {
-		countryJobs, err := ec.fetchJobsFromCountry(country)
-		if err != nil {
-			fmt.Printf("⚠️  Error fetching jobs from %s: %v\n", country, err)
-			continue
-		}
-		allJobs = append(allJobs, countryJobs...)
-	}
-
-	if len(allJobs) == 0 {
-		fmt.Println("⚠️  No jobs fetched from Adzuna, using demo data")
+	// Fetch real jobs from Netherlands first (test single country)
+	countryJobs, err := ec.fetchJobsFromCountry("nl")
+	if err != nil {
+		fmt.Printf("⚠️  Error fetching jobs from Sweden: %v\n", err)
 		return ec.fetchDemoJobs(), nil
 	}
 
-	return allJobs, nil
+	if len(countryJobs) == 0 {
+		fmt.Println("⚠️  No jobs fetched from Sweden, using demo data")
+		return ec.fetchDemoJobs(), nil
+	}
+
+	return countryJobs, nil
+
+	// If we get here, we have jobs from Sweden
+	return countryJobs, nil
 }
 
 // fetchJobsFromCountry fetches jobs from a specific country
 func (ec *EURESConnector) fetchJobsFromCountry(country string) ([]models.JobPost, error) {
-	// Build API URL with credentials
-	url := fmt.Sprintf("%s/%s/search/1?app_id=%s&app_key=%s&results_per_page=10&what=developer OR programmer OR software",
+	// Build API URL with credentials - Adzuna API format
+	url := fmt.Sprintf("%s/%s/search/1?app_id=%s&app_key=%s&results_per_page=10&what=developer+OR+programmer+OR+software",
 		ec.baseURL, country, ec.appID, ec.appKey)
 
 	fmt.Printf("🔍 Fetching jobs from Adzuna (%s)...\n", country)
@@ -139,7 +137,7 @@ func (ec *EURESConnector) fetchJobsFromCountry(country string) ([]models.JobPost
 
 // fetchDemoJobs returns demo data as fallback
 func (ec *EURESConnector) fetchDemoJobs() []models.JobPost {
-	return []models.JobPost{
+	jobs := []models.JobPost{
 		{
 			ID:              "demo-001",
 			Title:           "Senior Software Engineer",
@@ -210,13 +208,13 @@ func (ec *EURESConnector) fetchDemoJobs() []models.JobPost {
 		},
 	}
 
-	return jobs, nil
+	return jobs
 }
 
 // transformAdzunaJob converts Adzuna job format to our JobPost format
 func (ec *EURESConnector) transformAdzunaJob(aj AdzunaJob) models.JobPost {
 	job := models.JobPost{
-		ID:              fmt.Sprintf("adzuna-%d", aj.ID),
+		ID:              fmt.Sprintf("adzuna-%s", aj.ID),
 		Title:           aj.Title,
 		Company:         aj.Company.DisplayName,
 		Description:     aj.Description,
