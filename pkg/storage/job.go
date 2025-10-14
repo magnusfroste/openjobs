@@ -1,141 +1,190 @@
 package storage
 
 import (
-	"database/sql"
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
+	"os"
 
 	"openjobs/pkg/models"
-
-	"github.com/lib/pq"
 )
 
 // JobStore handles job data operations
 type JobStore struct {
-	db *sql.DB
+	supabaseURL   string
+	supabaseKey   string
+	httpClient    *http.Client
 }
 
 // NewJobStore creates a new job store
-func NewJobStore(db *sql.DB) *JobStore {
-	return &JobStore{db: db}
+func NewJobStore() *JobStore {
+	return &JobStore{
+		supabaseURL: os.Getenv("SUPABASE_URL"),
+		supabaseKey: os.Getenv("SUPABASE_ANON_KEY"),
+		httpClient:  &http.Client{},
+	}
 }
 
-// CreateJob inserts a new job into the database
+// CreateJob inserts a new job into Supabase
 func (js *JobStore) CreateJob(job *models.JobPost) error {
-	query := `
-		INSERT INTO job_posts (id, title, company, description, location, salary,
-			employment_type, experience_level, posted_date, expires_date,
-			requirements, benefits, fields)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`
-
-	fieldsJSON, err := json.Marshal(job.Fields)
+	jobJSON, err := json.Marshal(job)
 	if err != nil {
-		return fmt.Errorf("failed to marshal fields: %w", err)
+		return fmt.Errorf("failed to marshal job: %w", err)
 	}
 
-	_, err = js.db.Exec(query, job.ID, job.Title, job.Company, job.Description,
-		job.Location, job.Salary, job.EmploymentType, job.ExperienceLevel,
-		job.PostedDate, job.ExpiresDate, pq.Array(job.Requirements),
-		pq.Array(job.Benefits), fieldsJSON)
+	url := fmt.Sprintf("%s/rest/v1/job_posts", js.supabaseURL)
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jobJSON))
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
 
-	return err
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", js.supabaseKey))
+	req.Header.Set("apikey", js.supabaseKey)
+
+	resp, err := js.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to execute request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("supabase error %d: %s", resp.StatusCode, string(body))
+	}
+
+	return nil
 }
 
-// GetJob retrieves a job by ID
+// GetJob retrieves a job by ID from Supabase
 func (js *JobStore) GetJob(id string) (*models.JobPost, error) {
-	query := `
-		SELECT id, title, company, description, location, salary,
-			employment_type, experience_level, posted_date, expires_date,
-			requirements, benefits, fields
-		FROM job_posts WHERE id = $1`
-
-	var job models.JobPost
-	var fieldsJSON []byte
-
-	err := js.db.QueryRow(query, id).Scan(
-		&job.ID, &job.Title, &job.Company, &job.Description,
-		&job.Location, &job.Salary, &job.EmploymentType, &job.ExperienceLevel,
-		&job.PostedDate, &job.ExpiresDate, pq.Array(&job.Requirements),
-		pq.Array(&job.Benefits), &fieldsJSON)
-
+	url := fmt.Sprintf("%s/rest/v1/job_posts?id=eq.%s", js.supabaseURL, id)
+	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
-	err = json.Unmarshal(fieldsJSON, &job.Fields)
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", js.supabaseKey))
+	req.Header.Set("apikey", js.supabaseKey)
+
+	resp, err := js.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal fields: %w", err)
+		return nil, fmt.Errorf("failed to execute request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == 404 || resp.StatusCode >= 400 {
+		return nil, fmt.Errorf("sql: no rows in result set")
 	}
 
-	return &job, nil
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response: %w", err)
+	}
+
+	var jobs []models.JobPost
+	err = json.Unmarshal(body, &jobs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
+	}
+
+	if len(jobs) == 0 {
+		return nil, fmt.Errorf("sql: no rows in result set")
+	}
+
+	return &jobs[0], nil
 }
 
-// GetAllJobs retrieves all jobs with optional filtering
+// GetAllJobs retrieves all jobs with optional filtering from Supabase
 func (js *JobStore) GetAllJobs(limit, offset int) ([]*models.JobPost, error) {
-	query := `
-		SELECT id, title, company, description, location, salary,
-			employment_type, experience_level, posted_date, expires_date,
-			requirements, benefits, fields
-		FROM job_posts
-		ORDER BY posted_date DESC
-		LIMIT $1 OFFSET $2`
-
-	rows, err := js.db.Query(query, limit, offset)
+	url := fmt.Sprintf("%s/rest/v1/job_posts?select=*&order=posted_date.desc&limit=%d&offset=%d", js.supabaseURL, limit, offset)
+	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
-	defer rows.Close()
+
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", js.supabaseKey))
+	req.Header.Set("apikey", js.supabaseKey)
+
+	resp, err := js.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("supabase error %d: %s", resp.StatusCode, string(body))
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response: %w", err)
+	}
 
 	var jobs []*models.JobPost
-	for rows.Next() {
-		var job models.JobPost
-		var fieldsJSON []byte
-
-		err := rows.Scan(
-			&job.ID, &job.Title, &job.Company, &job.Description,
-			&job.Location, &job.Salary, &job.EmploymentType, &job.ExperienceLevel,
-			&job.PostedDate, &job.ExpiresDate, pq.Array(&job.Requirements),
-			pq.Array(&job.Benefits), &fieldsJSON)
-
-		if err != nil {
-			return nil, err
-		}
-
-		err = json.Unmarshal(fieldsJSON, &job.Fields)
-		if err != nil {
-			return nil, fmt.Errorf("failed to unmarshal fields: %w", err)
-		}
-
-		jobs = append(jobs, &job)
+	err = json.Unmarshal(body, &jobs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
 	}
 
 	return jobs, nil
 }
 
-// UpdateJob updates an existing job
+// UpdateJob updates an existing job in Supabase
 func (js *JobStore) UpdateJob(job *models.JobPost) error {
-	query := `
-		UPDATE job_posts
-		SET title = $2, company = $3, description = $4, location = $5,
-			salary = $6, employment_type = $7, experience_level = $8,
-			expires_date = $9, requirements = $10, benefits = $11, fields = $12
-		WHERE id = $1`
-
-	fieldsJSON, err := json.Marshal(job.Fields)
+	jobJSON, err := json.Marshal(job)
 	if err != nil {
-		return fmt.Errorf("failed to marshal fields: %w", err)
+		return fmt.Errorf("failed to marshal job: %w", err)
 	}
 
-	_, err = js.db.Exec(query, job.ID, job.Title, job.Company, job.Description,
-		job.Location, job.Salary, job.EmploymentType, job.ExperienceLevel,
-		job.ExpiresDate, pq.Array(job.Requirements), pq.Array(job.Benefits), fieldsJSON)
+	url := fmt.Sprintf("%s/rest/v1/job_posts?id=eq.%s", js.supabaseURL, job.ID)
+	req, err := http.NewRequest("PATCH", url, bytes.NewBuffer(jobJSON))
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
 
-	return err
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", js.supabaseKey))
+	req.Header.Set("apikey", js.supabaseKey)
+
+	resp, err := js.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to execute request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("supabase error %d: %s", resp.StatusCode, string(body))
+	}
+
+	return nil
 }
 
-// DeleteJob removes a job from the database
+// DeleteJob removes a job from Supabase
 func (js *JobStore) DeleteJob(id string) error {
-	query := `DELETE FROM job_posts WHERE id = $1`
-	_, err := js.db.Exec(query, id)
-	return err
+	url := fmt.Sprintf("%s/rest/v1/job_posts?id=eq.%s", js.supabaseURL, id)
+	req, err := http.NewRequest("DELETE", url, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", js.supabaseKey))
+	req.Header.Set("apikey", js.supabaseKey)
+
+	resp, err := js.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to execute request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("supabase error %d: %s", resp.StatusCode, string(body))
+	}
+
+	return nil
 }

@@ -137,19 +137,22 @@ go build -o openjobs ./cmd/openjobs
 ```
 
 ### Database Setup
-OpenJobs requires PostgreSQL. Set up the database:
+OpenJobs uses Supabase (PostgreSQL with advanced features). Set up your database:
 
+**Option 1: Supabase Cloud (Recommended)**
+1. Create account at https://supabase.com
+2. Create new project
+3. Go to SQL Editor and run: `migrations/001_create_job_posts.sql`
+
+**Option 2: Self-hosted Supabase (Your Setup)**
+1. Access your Supabase dashboard
+2. Go to SQL Editor
+3. Run the contents of `migrations/001_create_job_posts.sql`
+
+Set the environment variables:
 ```bash
-# Create database
-createdb openjobs
-
-# Run migrations
-psql -d openjobs -f migrations/001_create_job_posts.sql
-```
-
-Set the DATABASE_URL environment variable:
-```bash
-export DATABASE_URL="postgresql://user:password@localhost:5432/openjobs?sslmode=disable"
+export SUPABASE_URL="https://supabase.froste.eu"
+export SUPABASE_ANON_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyAgCiAgICAicm9sZSI6ICJhbm9uIiwKICAgICJpc3MiOiAic3VwYWJhc2UtZGVtbyIsCiAgICAiaWF0IjogMTY0MTc2OTIwMCwKICAgICJleHAiOiAxNzk5NTM1NjAwCn0.dc_X5iR_VP_qT0zsiyj_I_OZ2T9FtRU2BBNWN8Bu4GE"
 ```
 
 ### Docker Deployment
