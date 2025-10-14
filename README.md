@@ -12,10 +12,11 @@ OpenJobs aims to transform the job market by:
 
 ## Core Philosophy
 
-**Open Access**: All job listings are publicly available
-**Open Data**: Standardized formats for easy integration
-**Open Innovation**: Community-driven development and improvements
-**Open Talent**: AI-assisted matching of skills and opportunities
+**Open Access**: All job listings are publicly available without walled gardens
+**Open Data**: Standardized formats for easy integration and sharing
+**Open Innovation**: Community-driven development focused on transparency
+**Open Talent**: AI-assisted matching that benefits everyone, not corporations
+**Open Sharing**: We integrate with platforms that share data openly for the greater good
 
 ## Features
 
@@ -37,17 +38,17 @@ OpenJobs aims to transform the job market by:
 ## Architecture
 
 ### Container-Based Plugin System
-Each data source connector runs in its own container:
+Each data source connector runs in its own container, promoting open data sharing:
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
 │   Main Platform │    │   Plugin Runner │    │   Plugin Runner │
-│   (OpenJobs)    │◄──▶│   (Arbetsförmed)│◄──▶│   (LinkedIn)    │
+│   (OpenJobs)    │◄──▶│   (Arbetsförmed)│◄──▶│   (Indeed)      │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
         │                       │                       │
         ▼                       ▼                       ▼
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
 │   Plugin DB     │    │   Data Cache    │    │   Data Cache    │
-│   (Registry)    │    │   (Temp)        │    │   (Temp)        │
+│   (Registry)    │    │   (Open)        │    │   (Open)        │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
 ```
 
@@ -99,10 +100,13 @@ LOG_LEVEL=info                # Logging verbosity
 ## Plugin Architecture
 
 ### Plugin System
-Plugins enable integration with various job sources:
-- **Arbetsförmedlingen Connector**: Swedish job board integration
-- **LinkedIn Jobs Connector**: Global job platform connectivity
-- **Custom Connectors**: Community-developed data sources
+Plugins enable integration with open job sources that share data for the greater good:
+- **Arbetsförmedlingen Connector**: Swedish public employment service
+- **Indeed Jobs Connector**: Global job search engine with open APIs
+- **Stack Overflow Jobs Connector**: Developer-focused job platform
+- **Community Job Boards**: Local and niche job platforms
+- **Company Career Pages**: Direct company job posting integration
+- **Custom Connectors**: Community-developed open data sources
 
 ### Plugin Development
 Create plugins using the standardized interface:
