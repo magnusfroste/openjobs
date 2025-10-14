@@ -38,17 +38,17 @@ OpenJobs aims to transform the job market by:
 ## Architecture
 
 ### Container-Based Plugin System
-Each data source connector runs in its own container, promoting open data sharing:
+Each data source connector runs in its own container, promoting truly open data sharing:
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
 │   Main Platform │    │   Plugin Runner │    │   Plugin Runner │
-│   (OpenJobs)    │◄──▶│   (Arbetsförmed)│◄──▶│   (Indeed)      │
+│   (OpenJobs)    │◄──▶│   (Arbetsförmed)│◄──▶│   (Adzuna)      │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
         │                       │                       │
         ▼                       ▼                       ▼
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
 │   Plugin DB     │    │   Data Cache    │    │   Data Cache    │
-│   (Registry)    │    │   (Open)        │    │   (Open)        │
+│   (Registry)    │    │   (Open API)    │    │   (Open API)    │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
 ```
 
@@ -100,11 +100,15 @@ LOG_LEVEL=info                # Logging verbosity
 ## Plugin Architecture
 
 ### Plugin System
-Plugins enable integration with open job sources that share data for the greater good:
-- **Arbetsförmedlingen Connector**: Swedish public employment service
-- **Indeed Jobs Connector**: Global job search engine with open APIs
-- **Stack Overflow Jobs Connector**: Developer-focused job platform
-- **Community Job Boards**: Local and niche job platforms
+Plugins enable integration with truly open job sources that share data for the greater good:
+- **Arbetsförmedlingen Connector**: Swedish public employment service (government open data)
+- **Adzuna Jobs Connector**: Global job search API with generous free tier
+- **Reed.co.uk Connector**: UK job board with open API access
+- **EURES Connector**: European Commission job mobility portal (pan-European)
+- **Authentic Jobs Connector**: Independent developer-focused job board
+- **We Work Remotely Connector**: Remote work job board with open RSS feeds
+- **Community Job Boards**: Local and niche platforms with open APIs
+- **Government Job Portals**: Public sector employment services
 - **Company Career Pages**: Direct company job posting integration
 - **Custom Connectors**: Community-developed open data sources
 
