@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"time"
 
-	"jobplatform/pkg/models"
-	"jobplatform/pkg/storage"
+	"openjobs/pkg/models"
+	"openjobs/pkg/storage"
 
 	"github.com/google/uuid"
 )

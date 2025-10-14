@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"jobplatform/pkg/models"
+	"openjobs/pkg/models"
 
 	"github.com/lib/pq"
 )

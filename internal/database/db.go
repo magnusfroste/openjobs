@@ -12,7 +12,7 @@ import (
 func Connect() (*sql.DB, error) {
 	dsn := os.Getenv("DATABASE_URL")
 	if dsn == "" {
-		dsn = "postgresql://postgres:postgres@localhost:5432/jobplatform?sslmode=disable"
+		dsn = "postgresql://postgres:postgres@localhost:5432/openjobs?sslmode=disable"
 	}
 
 	db, err := sql.Open("postgres", dsn)

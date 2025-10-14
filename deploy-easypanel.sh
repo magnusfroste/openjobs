@@ -29,7 +29,7 @@ services:
     ports:
       - "8080:8080"
     environment:
-      - DATABASE_URL=postgresql://user:password@db:5432/jobplatform
+      - DATABASE_URL=postgresql://user:password@db:5432/openjobs
       - PORT=8080
     depends_on:
       - db
@@ -38,7 +38,7 @@ services:
   db:
     image: postgres:13
     environment:
-      - POSTGRES_DB=jobplatform
+      - POSTGRES_DB=openjobs
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
     volumes:
@@ -56,7 +56,7 @@ cat > .env.template << EOF
 # Environment variables for Job Platform
 # Copy this file to .env and update values as needed
 
-DATABASE_URL=postgresql://user:password@localhost:5432/jobplatform
+DATABASE_URL=postgresql://user:password@localhost:5432/openjobs
 PORT=8080
 LOG_LEVEL=info
 EOF
