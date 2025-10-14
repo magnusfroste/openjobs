@@ -2,10 +2,12 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
 
+	"openjobs/internal/scheduler"
 	"openjobs/pkg/models"
 	"openjobs/pkg/storage"
 
@@ -14,12 +16,16 @@ import (
 
 // Server holds the HTTP server dependencies
 type Server struct {
-	jobStore *storage.JobStore
+	jobStore  *storage.JobStore
+	scheduler *scheduler.Scheduler
 }
 
 // NewServer creates a new server instance
-func NewServer(jobStore *storage.JobStore) *Server {
-	return &Server{jobStore: jobStore}
+func NewServer(jobStore *storage.JobStore, scheduler *scheduler.Scheduler) *Server {
+	return &Server{
+		jobStore:  jobStore,
+		scheduler: scheduler,
+	}
 }
 
 // CreateJob handles POST /jobs
@@ -86,6 +92,36 @@ func (s *Server) GetAllJobs(w http.ResponseWriter, r *http.Request) {
 	response := models.APIResponse{
 		Success: true,
 		Data:    jobs,
+	}
+
+	json.NewEncoder(w).Encode(response)
+}
+
+// SyncJobs handles POST /sync/manual - Manual job synchronization
+func (s *Server) SyncJobs(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	// Only allow POST requests
+	if r.Method != http.MethodPost {
+		http.Error(w, `{"success": false, "message": "Method not allowed"}`, http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Run manual sync
+	err := s.scheduler.RunManualSync()
+	if err != nil {
+		response := models.APIResponse{
+			Success: false,
+			Message: fmt.Sprintf("Sync failed: %v", err),
+		}
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(response)
+		return
+	}
+
+	response := models.APIResponse{
+		Success: true,
+		Message: "Job synchronization completed successfully",
 	}
 
 	json.NewEncoder(w).Encode(response)

@@ -60,9 +60,9 @@ GET /jobs/{id}               # Retrieve specific job
 POST /jobs                   # Create new job listing
 PUT /jobs/{id}               # Update job listing
 DELETE /jobs/{id}            # Remove job listing
+POST /sync/manual            # Manual job data synchronization
 GET /plugins                 # List registered plugins
 POST /plugins/register       # Register new plugin
-GET /sync/manual             # Manual sync trigger
 GET /config                  # Platform configuration
 ```
 
@@ -118,6 +118,25 @@ Create plugins using the standardized interface:
 2. Configure environment variables
 3. Define data transformation rules
 4. Register with OpenJobs platform
+
+## Automated Data Ingestion
+
+OpenJobs automatically ingests job data from connected sources:
+
+### Scheduled Ingestion
+- **Frequency**: Every 6 hours
+- **Sources**: EURES (European job mobility portal)
+- **Process**: Automatic fetching, transformation, and storage
+
+### Manual Sync
+Trigger immediate data ingestion:
+```bash
+curl -X POST http://localhost:8080/sync/manual
+```
+
+### Data Sources
+- **EURES**: European Commission job mobility portal
+- **Future**: Additional open job platforms
 
 ## Getting Started
 
