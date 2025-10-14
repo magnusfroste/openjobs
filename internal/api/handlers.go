@@ -99,6 +99,7 @@ func (s *Server) GetAllJobs(w http.ResponseWriter, r *http.Request) {
 
 // SyncJobs handles POST /sync/manual - Manual job synchronization
 func (s *Server) SyncJobs(w http.ResponseWriter, r *http.Request) {
+	fmt.Printf("🔧 Manual sync requested: %s %s\n", r.Method, r.URL.Path)
 	w.Header().Set("Content-Type", "application/json")
 
 	// Only allow POST requests

@@ -13,9 +13,9 @@ import (
 
 // JobStore handles job data operations
 type JobStore struct {
-	supabaseURL   string
-	supabaseKey   string
-	httpClient    *http.Client
+	supabaseURL string
+	supabaseKey string
+	httpClient  *http.Client
 }
 
 // NewJobStore creates a new job store
@@ -29,12 +29,16 @@ func NewJobStore() *JobStore {
 
 // CreateJob inserts a new job into Supabase
 func (js *JobStore) CreateJob(job *models.JobPost) error {
+	fmt.Printf("📝 Attempting to create job: %s (ID: %s)\n", job.Title, job.ID)
+
 	jobJSON, err := json.Marshal(job)
 	if err != nil {
 		return fmt.Errorf("failed to marshal job: %w", err)
 	}
 
 	url := fmt.Sprintf("%s/rest/v1/job_posts", js.supabaseURL)
+	fmt.Printf("   POST to: %s\n", url)
+
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jobJSON))
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
@@ -43,18 +47,23 @@ func (js *JobStore) CreateJob(job *models.JobPost) error {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", js.supabaseKey))
 	req.Header.Set("apikey", js.supabaseKey)
+	req.Header.Set("Prefer", "return=representation")
 
 	resp, err := js.httpClient.Do(req)
 	if err != nil {
+		fmt.Printf("   ❌ HTTP request failed: %v\n", err)
 		return fmt.Errorf("failed to execute request: %w", err)
 	}
 	defer resp.Body.Close()
 
+	body, _ := io.ReadAll(resp.Body)
+
 	if resp.StatusCode >= 400 {
-		body, _ := io.ReadAll(resp.Body)
+		fmt.Printf("   ❌ Supabase error %d: %s\n", resp.StatusCode, string(body))
 		return fmt.Errorf("supabase error %d: %s", resp.StatusCode, string(body))
 	}
 
+	fmt.Printf("   ✅ Job created successfully (status: %d)\n", resp.StatusCode)
 	return nil
 }
 

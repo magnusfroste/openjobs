@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -14,140 +15,259 @@ import (
 
 // EURESConnector implements the connector interface for EURES
 type EURESConnector struct {
-	store     *storage.JobStore
-	baseURL   string
-	userAgent string
+	store      *storage.JobStore
+	baseURL    string
+	userAgent  string
+	appID      string
+	appKey     string
+	httpClient *http.Client
 }
 
-// EURESJob represents a job from the EURES API
-type EURESJob struct {
-	ID          string `json:"id"`
+// AdzunaJob represents a job from the Adzuna API
+type AdzunaJob struct {
+	ID          int    `json:"id"`
 	Title       string `json:"title"`
 	Description string `json:"description"`
-	Company     string `json:"company"`
-	Location    struct {
-		City    string `json:"city"`
-		Country string `json:"country"`
+	Company     struct {
+		DisplayName string `json:"display_name"`
+	} `json:"company"`
+	Location struct {
+		Area []string `json:"area"`
 	} `json:"location"`
-	Salary struct {
-		Min int `json:"min,omitempty"`
-		Max int `json:"max,omitempty"`
-	} `json:"salary"`
-	EmploymentType string    `json:"employmentType"`
-	Experience     string    `json:"experience"`
-	PostedDate     time.Time `json:"postedDate"`
-	ExpiryDate     time.Time `json:"expiryDate"`
-	URL            string    `json:"url"`
+	SalaryMin    float64 `json:"salary_min,omitempty"`
+	SalaryMax    float64 `json:"salary_max,omitempty"`
+	ContractType string  `json:"contract_type"`
+	ContractTime string  `json:"contract_time"`
+	Created      string  `json:"created"`
+	RedirectURL  string  `json:"redirect_url"`
 }
 
-// EURESResponse represents the API response structure
-type EURESResponse struct {
-	Jobs  []EURESJob `json:"jobs"`
-	Total int        `json:"total"`
+// AdzunaResponse represents the API response structure
+type AdzunaResponse struct {
+	Results []AdzunaJob `json:"results"`
+	Count   int         `json:"count"`
 }
 
 // NewEURESConnector creates a new EURES connector
 func NewEURESConnector(store *storage.JobStore) *EURESConnector {
 	return &EURESConnector{
-		store:     store,
-		baseURL:   "https://ec.europa.eu/eures/eures-services",
-		userAgent: "OpenJobs-EURES-Connector/1.0",
+		store:      store,
+		baseURL:    "https://api.adzuna.com/v1/api/jobs", // Adzuna base URL
+		userAgent:  "OpenJobs-EURES-Connector/1.0",
+		appID:      os.Getenv("ADZUNA_APP_ID"),
+		appKey:     os.Getenv("ADZUNA_APP_KEY"),
+		httpClient: &http.Client{Timeout: 30 * time.Second},
 	}
 }
 
-// FetchJobs fetches job listings from EURES API
+// FetchJobs fetches job listings from Adzuna API
 func (ec *EURESConnector) FetchJobs() ([]models.JobPost, error) {
-	// EURES API endpoint for job search
-	url := fmt.Sprintf("%s/api/jobs/search", ec.baseURL)
+	// If credentials not configured, return demo data
+	if ec.appID == "" || ec.appKey == "" {
+		fmt.Println("⚠️  Adzuna credentials not configured, using demo data")
+		return ec.fetchDemoJobs(), nil
+	}
 
-	// Create request with parameters
+	// Fetch real jobs from multiple European countries
+	countries := []string{"se", "dk", "no", "fi", "de", "nl"} // Sweden, Denmark, Norway, Finland, Germany, Netherlands
+	allJobs := []models.JobPost{}
+
+	for _, country := range countries {
+		countryJobs, err := ec.fetchJobsFromCountry(country)
+		if err != nil {
+			fmt.Printf("⚠️  Error fetching jobs from %s: %v\n", country, err)
+			continue
+		}
+		allJobs = append(allJobs, countryJobs...)
+	}
+
+	if len(allJobs) == 0 {
+		fmt.Println("⚠️  No jobs fetched from Adzuna, using demo data")
+		return ec.fetchDemoJobs(), nil
+	}
+
+	return allJobs, nil
+}
+
+// fetchJobsFromCountry fetches jobs from a specific country
+func (ec *EURESConnector) fetchJobsFromCountry(country string) ([]models.JobPost, error) {
+	// Build API URL with credentials
+	url := fmt.Sprintf("%s/%s/search/1?app_id=%s&app_key=%s&results_per_page=10&what=developer OR programmer OR software",
+		ec.baseURL, country, ec.appID, ec.appKey)
+
+	fmt.Printf("🔍 Fetching jobs from Adzuna (%s)...\n", country)
+
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
-	// Add headers
 	req.Header.Set("User-Agent", ec.userAgent)
-	req.Header.Set("Accept", "application/json")
 
-	// Add query parameters for recent jobs
-	q := req.URL.Query()
-	q.Add("sort", "date")
-	q.Add("order", "desc")
-	q.Add("limit", "100") // Fetch up to 100 recent jobs
-	q.Add("days", "7")    // Jobs from last 7 days
-	req.URL.RawQuery = q.Encode()
-
-	// Make the request
-	client := &http.Client{Timeout: 30 * time.Second}
-	resp, err := client.Do(req)
+	resp, err := ec.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch jobs: %w", err)
+		return nil, fmt.Errorf("failed to execute request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("EURES API error %d: %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("adzuna API error %d: %s", resp.StatusCode, string(body))
 	}
 
-	// Parse response
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response: %w", err)
 	}
 
-	var euresResp EURESResponse
-	err = json.Unmarshal(body, &euresResp)
+	var adzunaResponse AdzunaResponse
+	err = json.Unmarshal(body, &adzunaResponse)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse response: %w", err)
 	}
 
 	// Transform to our JobPost format
-	jobs := make([]models.JobPost, 0, len(euresResp.Jobs))
-	for _, euresJob := range euresResp.Jobs {
-		job := ec.transformEURESJob(euresJob)
+	jobs := make([]models.JobPost, 0, len(adzunaResponse.Results))
+	for _, adzunaJob := range adzunaResponse.Results {
+		job := ec.transformAdzunaJob(adzunaJob)
 		jobs = append(jobs, job)
+	}
+
+	fmt.Printf("   ✅ Fetched %d jobs from %s\n", len(jobs), country)
+	return jobs, nil
+}
+
+// fetchDemoJobs returns demo data as fallback
+func (ec *EURESConnector) fetchDemoJobs() []models.JobPost {
+	return []models.JobPost{
+		{
+			ID:              "demo-001",
+			Title:           "Senior Software Engineer",
+			Company:         "TechCorp Sweden AB",
+			Description:     "We are looking for an experienced software engineer to join our innovative team in Stockholm. You will work on cutting-edge technologies and contribute to our mission of digital transformation.",
+			Location:        "Stockholm, Sweden",
+			Salary:          "SEK 45,000 - 65,000/month",
+			EmploymentType:  "Full-time",
+			ExperienceLevel: "Senior",
+			PostedDate:      time.Now().Add(-24 * time.Hour),
+			ExpiresDate:     time.Now().AddDate(0, 1, 0),
+			Requirements:    []string{"5+ years experience", "Go, Python, or Java", "Cloud platforms (AWS/GCP)"},
+			Benefits:        []string{"Health insurance", "Flexible hours", "Remote work options"},
+			Fields: map[string]interface{}{
+				"source":      "demo-eures",
+				"source_url":  "https://example.com/job/001",
+				"original_id": "001",
+				"country":     "Sweden",
+				"city":        "Stockholm",
+				"connector":   "eures",
+				"fetched_at":  time.Now(),
+			},
+		},
+		{
+			ID:              "demo-002",
+			Title:           "Full Stack Developer",
+			Company:         "Nordic Startup GmbH",
+			Description:     "Join our fast-growing startup as a full stack developer. We're building the future of Nordic fintech and need talented developers to help us scale.",
+			Location:        "Copenhagen, Denmark",
+			Salary:          "DKK 35,000 - 50,000/month",
+			EmploymentType:  "Full-time",
+			ExperienceLevel: "Mid-level",
+			PostedDate:      time.Now().Add(-48 * time.Hour),
+			ExpiresDate:     time.Now().AddDate(0, 1, 0),
+			Requirements:    []string{"3+ years experience", "React, Node.js", "PostgreSQL"},
+			Benefits:        []string{"Stock options", "Learning budget", "Team events"},
+			Fields: map[string]interface{}{
+				"source":      "demo-eures",
+				"source_url":  "https://example.com/job/002",
+				"original_id": "002",
+				"country":     "Denmark",
+				"city":        "Copenhagen",
+				"connector":   "eures",
+				"fetched_at":  time.Now(),
+			},
+		},
+		{
+			ID:              "demo-003",
+			Title:           "DevOps Engineer",
+			Description:     "We're seeking a DevOps engineer to help us build and maintain our cloud infrastructure. Experience with Kubernetes, Docker, and CI/CD pipelines is essential.",
+			Location:        "Helsinki, Finland",
+			Salary:          "EUR 4,500 - 6,500/month",
+			EmploymentType:  "Full-time",
+			ExperienceLevel: "Senior",
+			PostedDate:      time.Now().Add(-72 * time.Hour),
+			ExpiresDate:     time.Now().AddDate(0, 1, 0),
+			Requirements:    []string{"4+ years DevOps experience", "Kubernetes, Docker", "AWS/Azure/GCP"},
+			Benefits:        []string{"Health insurance", "Professional development", "Flexible work"},
+			Fields: map[string]interface{}{
+				"source":      "demo-eures",
+				"source_url":  "https://example.com/job/003",
+				"original_id": "003",
+				"country":     "Finland",
+				"city":        "Helsinki",
+				"connector":   "eures",
+				"fetched_at":  time.Now(),
+			},
+		},
 	}
 
 	return jobs, nil
 }
 
-// transformEURESJob converts EURES job format to our JobPost format
-func (ec *EURESConnector) transformEURESJob(ej EURESJob) models.JobPost {
+// transformAdzunaJob converts Adzuna job format to our JobPost format
+func (ec *EURESConnector) transformAdzunaJob(aj AdzunaJob) models.JobPost {
 	job := models.JobPost{
-		ID:              fmt.Sprintf("eures-%s", ej.ID),
-		Title:           ej.Title,
-		Company:         ej.Company,
-		Description:     ej.Description,
-		Location:        fmt.Sprintf("%s, %s", ej.Location.City, ej.Location.Country),
-		EmploymentType:  ec.mapEmploymentType(ej.EmploymentType),
-		ExperienceLevel: ec.mapExperienceLevel(ej.Experience),
-		PostedDate:      ej.PostedDate,
-		ExpiresDate:     ej.ExpiryDate,
+		ID:              fmt.Sprintf("adzuna-%d", aj.ID),
+		Title:           aj.Title,
+		Company:         aj.Company.DisplayName,
+		Description:     aj.Description,
+		Location:        strings.Join(aj.Location.Area, ", "),
+		EmploymentType:  ec.mapEmploymentType(aj.ContractTime),
+		ExperienceLevel: "Mid-level", // Adzuna doesn't provide experience level
+		PostedDate:      ec.parseAdzunaDate(aj.Created),
+		ExpiresDate:     ec.parseAdzunaDate(aj.Created).AddDate(0, 1, 0), // Default 1 month expiry
 		Fields: map[string]interface{}{
-			"source":      "eures",
-			"source_url":  ej.URL,
-			"original_id": ej.ID,
-			"country":     ej.Location.Country,
-			"city":        ej.Location.City,
-			"connector":   "eures",
-			"fetched_at":  time.Now(),
+			"source":        "adzuna",
+			"source_url":    aj.RedirectURL,
+			"original_id":   aj.ID,
+			"contract_type": aj.ContractType,
+			"contract_time": aj.ContractTime,
+			"location_area": aj.Location.Area,
+			"connector":     "eures-adzuna",
+			"fetched_at":    time.Now(),
 		},
 	}
 
 	// Handle salary
-	if ej.Salary.Min > 0 || ej.Salary.Max > 0 {
-		if ej.Salary.Min > 0 && ej.Salary.Max > 0 {
-			job.Salary = fmt.Sprintf("€%d - €%d", ej.Salary.Min, ej.Salary.Max)
-		} else if ej.Salary.Min > 0 {
-			job.Salary = fmt.Sprintf("€%d+", ej.Salary.Min)
+	if aj.SalaryMin > 0 || aj.SalaryMax > 0 {
+		if aj.SalaryMin > 0 && aj.SalaryMax > 0 {
+			job.Salary = fmt.Sprintf("€%.0f - €%.0f", aj.SalaryMin, aj.SalaryMax)
+		} else if aj.SalaryMin > 0 {
+			job.Salary = fmt.Sprintf("€%.0f+", aj.SalaryMin)
 		} else {
-			job.Salary = fmt.Sprintf("Up to €%d", ej.Salary.Max)
+			job.Salary = fmt.Sprintf("Up to €%.0f", aj.SalaryMax)
 		}
 	}
 
 	return job
+}
+
+// parseAdzunaDate parses Adzuna date string
+func (ec *EURESConnector) parseAdzunaDate(dateStr string) time.Time {
+	// Try parsing different date formats
+	formats := []string{
+		"2006-01-02T15:04:05Z",
+		"2006-01-02T15:04:05",
+		"2006-01-02",
+	}
+
+	for _, format := range formats {
+		if t, err := time.Parse(format, dateStr); err == nil {
+			return t
+		}
+	}
+
+	// Default to current time if parsing fails
+	return time.Now()
 }
 
 // mapEmploymentType converts EURES employment type to our format

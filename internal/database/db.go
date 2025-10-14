@@ -2,31 +2,41 @@ package database
 
 import (
 	"fmt"
+	"log"
 	"os"
+	"strings"
 )
 
 // Connect establishes a connection to Supabase via REST API
-func Connect() {
+func Connect() error {
 	// Validate environment variables
 	supabaseURL := os.Getenv("SUPABASE_URL")
 	supabaseKey := os.Getenv("SUPABASE_ANON_KEY")
 
-	if supabaseURL == "" {
-		fmt.Println("Warning: SUPABASE_URL not set, using default")
-		os.Setenv("SUPABASE_URL", "https://supabase.froste.eu")
-	}
-	if supabaseKey == "" {
-		fmt.Println("Warning: SUPABASE_ANON_KEY not set, using default")
-		os.Setenv("SUPABASE_ANON_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyAgCiAgICAicm9sZSI6ICJhbm9uIiwKICAgICJpc3MiOiAic3VwYWJhc2UtZGVtbyIsCiAgICAiaWF0IjogMTY0MTc2OTIwMCwKICAgICJleHAiOiAxNzk5NTM1NjAwCn0.dc_X5iR_VP_qT0zsiyj_I_OZ2T9FtRU2BBNWN8Bu4GE")
+	// Check for placeholder values
+	if supabaseURL == "" || strings.Contains(supabaseURL, "your-project") {
+		log.Fatal("❌ FATAL: SUPABASE_URL is not configured properly in .env file!\n" +
+			"Please update .env with your actual Supabase URL from https://supabase.com/dashboard")
 	}
 
-	fmt.Println("Supabase environment configured successfully")
+	if supabaseKey == "" {
+		log.Fatal("❌ FATAL: SUPABASE_ANON_KEY is not configured in .env file!\n" +
+			"Please update .env with your actual Supabase anon key from https://supabase.com/dashboard")
+	}
+
+	fmt.Println("✅ Supabase configuration validated")
+	fmt.Printf("   URL: %s\n", supabaseURL)
+	fmt.Printf("   Key: %s...\n", supabaseKey[:20])
+
+	return nil
 }
 
 // InitDB initializes the database by running migrations via Supabase REST API
 func InitDB() error {
-	fmt.Println("Supabase database connection initialized")
-	fmt.Println("Note: Create tables manually in Supabase dashboard using migrations/001_create_job_posts.sql")
-	fmt.Println("Or use the SQL editor in your Supabase dashboard to run the migration")
+	fmt.Println("📊 Database initialization check")
+	fmt.Println("⚠️  IMPORTANT: Ensure you have run the migration in your Supabase dashboard:")
+	fmt.Println("   1. Go to your Supabase dashboard: https://supabase.com/dashboard")
+	fmt.Println("   2. Navigate to SQL Editor")
+	fmt.Println("   3. Run the contents of: migrations/001_create_job_posts.sql")
 	return nil
 }
