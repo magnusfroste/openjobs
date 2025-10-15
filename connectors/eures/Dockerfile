@@ -1,17 +1,18 @@
 # Dockerfile for EURES Plugin
+# Build context should be project root (/)
 FROM golang:1.21-alpine AS builder
 
 # Set working directory
 WORKDIR /app
 
-# Copy go module files
+# Copy go module files from project root
 COPY go.mod go.sum ./
 RUN go mod download
 
-# Copy source code
+# Copy entire project source
 COPY . .
 
-# Build the plugin binary
+# Build the plugin binary from project root context
 RUN CGO_ENABLED=0 GOOS=linux go build -o plugin-eures ./cmd/plugin-eures
 
 # Create minimal runtime image
