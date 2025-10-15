@@ -12,7 +12,7 @@ RUN go mod download
 COPY . .
 
 # Build the application
-RUN CGO_ENABLED=0 GOOS=linux go build -o openjobs ./cmd/openjobs/
+RUN CGO_ENABLED=0 GOOS=linux go build -o openjobs ./cmd/openjobs
 
 # Final stage
 FROM alpine:latest
