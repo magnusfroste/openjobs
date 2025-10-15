@@ -25,16 +25,16 @@ type JobPost struct {
 
 // JobPostTraditional represents a job posting with fixed schema
 type JobPostTraditional struct {
-	ID              string        `json:"id"`
-	Title           string        `json:"title"`
-	Company         string        `json:"company"`
-	Description     string        `json:"description"`
-	Location        string        `json:"location"`
-	Salary          string        `json:"salary"`
-	EmploymentType  string        `json:"employment_type"`
-	ExperienceLevel string        `json:"experience_level"`
-	PostedDate      time.Time     `json:"posted_date"`
-	ExpiresDate     time.Time     `json:"expires_date"`
+	ID              string         `json:"id"`
+	Title           string         `json:"title"`
+	Company         string         `json:"company"`
+	Description     string         `json:"description"`
+	Location        string         `json:"location"`
+	Salary          string         `json:"salary"`
+	EmploymentType  string         `json:"employment_type"`
+	ExperienceLevel string         `json:"experience_level"`
+	PostedDate      time.Time      `json:"posted_date"`
+	ExpiresDate     time.Time      `json:"expires_date"`
 	Requirements    pq.StringArray `json:"requirements"`
 	Benefits        pq.StringArray `json:"benefits"`
 }
