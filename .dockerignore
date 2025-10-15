@@ -46,8 +46,10 @@ dist/
 # Documentation (optional - comment out if needed)
 # docs/
 
-# Scripts
-*.sh
+# Scripts (keep specific deployment scripts)
+deploy-easypanel.sh
+deploy-microservices.sh
+test_local.sh
 
 # Docker files (keep Dockerfile but exclude others)
 Dockerfile.*

@@ -34,5 +34,5 @@ go.work
 Thumbs.db
 
 # Build artifacts
-openjobs
+/openjobs
 dist/
