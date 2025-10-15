@@ -164,7 +164,11 @@ In Easypanel service settings, add these environment variables:
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_ANON_KEY=your-anon-key-here
 PORT=8080
+ADZUNA_APP_ID=your-adzuna-app-id
+ADZUNA_APP_KEY=your-adzuna-app-key
 ```
+
+The `ADZUNA_APP_ID` and `ADZUNA_APP_KEY` are optional but enable the EURES connector to fetch real jobs from Adzuna API instead of using demo data.
 
 ### 5.4 Deploy from GitHub (Alternative)
 

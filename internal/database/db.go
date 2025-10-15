@@ -14,9 +14,13 @@ func Connect() error {
 	supabaseKey := os.Getenv("SUPABASE_ANON_KEY")
 
 	// Check for placeholder values
-	if supabaseURL == "" || strings.Contains(supabaseURL, "your-project") {
-		log.Fatal("❌ FATAL: SUPABASE_URL is not configured properly in .env file!\n" +
-			"Please update .env with your actual Supabase URL from https://supabase.com/dashboard")
+	if supabaseURL == "" || strings.Contains(supabaseURL, "your-project") || strings.Contains(supabaseURL, "supabase.froste.eu") {
+		if supabaseURL != "" && strings.Contains(supabaseURL, "supabase.froste.eu") {
+			// This looks like a valid Supabase URL, continue
+		} else {
+			log.Fatal("❌ FATAL: SUPABASE_URL is not configured properly in .env file!\n" +
+				"Please update .env with your actual Supabase URL from https://supabase.com/dashboard")
+		}
 	}
 
 	if supabaseKey == "" {

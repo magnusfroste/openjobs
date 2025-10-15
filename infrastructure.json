@@ -1,0 +1,51 @@
+{
+  "infrastructure": {
+    "name": "OpenJobs Microservices",
+    "version": "1.0.0",
+    "description": "Multi-container plugin architecture for Easypanel"
+  },
+  "containers": [
+    {
+      "name": "core-api",
+      "image": "openjobs-core:latest",
+      "ports": [8080],
+      "env": [
+        "SUPABASE_URL",
+        "SUPABASE_ANON_KEY",
+        "PLUGIN_ARBETSFORMEDLINGEN_URL=http://plugin-arbetsformedlingen:8081",
+        "PLUGIN_EURES_URL=http://plugin-eures:8082"
+      ],
+      "depends_on": []
+    },
+    {
+      "name": "plugin-arbetsformedlingen",
+      "image": "openjobs-plugin-arbetsformedlingen:latest",
+      "ports": [8081],
+      "env": [
+        "SUPABASE_URL",
+        "SUPABASE_ANON_KEY",
+        "PORT=8081"
+      ]
+    },
+    {
+      "name": "plugin-eures",
+      "image": "openjobs-plugin-eures:latest",
+      "ports": [8082],
+      "env": [
+        "SUPABASE_URL",
+        "SUPABASE_ANON_KEY",
+        "ADZUNA_APP_ID",
+        "ADZUNA_APP_KEY",
+        "PORT=8082"
+      ]
+    }
+  ],
+  "networks": {
+    "openjobs-network": {
+      "driver": "bridge"
+    }
+  },
+  "volumes": {
+    "shared-storage": {}
+  }
+}

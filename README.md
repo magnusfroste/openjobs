@@ -99,18 +99,30 @@ LOG_LEVEL=info                # Logging verbosity
 
 ## Plugin Architecture
 
+### Clean Interface Design
+OpenJobs implements a **properly decoupled plugin architecture** using Go interfaces and runtime registration:
+
+```go
+// Interface all connectors implement
+type PluginConnector interface {
+    GetID() string
+    GetName() string
+    FetchJobs() ([]JobPost, error)
+    SyncJobs() error
+}
+```
+
 ### Plugin System
-Plugins enable integration with truly open job sources that share data for the greater good:
+Connectors are registered at startup and called dynamically - **zero coupling** between core and plugins:
 - **Arbetsförmedlingen Connector**: Swedish public employment service (government open data)
-- **Adzuna Jobs Connector**: Global job search API with generous free tier
-- **Reed.co.uk Connector**: UK job board with open API access
 - **EURES Connector**: European Commission job mobility portal (pan-European)
-- **Authentic Jobs Connector**: Independent developer-focused job board
-- **We Work Remotely Connector**: Remote work job board with open RSS feeds
-- **Community Job Boards**: Local and niche platforms with open APIs
-- **Government Job Portals**: Public sector employment services
-- **Company Career Pages**: Direct company job posting integration
-- **Custom Connectors**: Community-developed open data sources
+- **Custom Connectors**: Extend by implementing `PluginConnector` interface
+
+**Adding New Connectors:**
+```go
+// Just register - no core code changes needed!
+registry.Register(newConnector.NewMyConnector(store))
+```
 
 ### Plugin Development
 Create plugins using the standardized interface:

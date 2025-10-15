@@ -48,6 +48,16 @@ type AdzunaResponse struct {
 	Count   int         `json:"count"`
 }
 
+// GetID returns the connector ID
+func (ec *EURESConnector) GetID() string {
+	return "eures"
+}
+
+// GetName returns the connector name
+func (ec *EURESConnector) GetName() string {
+	return "EURES Connector"
+}
+
 // NewEURESConnector creates a new EURES connector
 func NewEURESConnector(store *storage.JobStore) *EURESConnector {
 	return &EURESConnector{
@@ -81,9 +91,6 @@ func (ec *EURESConnector) FetchJobs() ([]models.JobPost, error) {
 		return ec.fetchDemoJobs(), nil
 	}
 
-	return countryJobs, nil
-
-	// If we get here, we have jobs from Sweden
 	return countryJobs, nil
 }
 

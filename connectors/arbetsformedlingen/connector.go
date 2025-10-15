@@ -60,6 +60,16 @@ type AFResponse struct {
 	Hits []AFJob `json:"hits"`
 }
 
+// GetID returns the connector ID
+func (ac *ArbetsformedlingenConnector) GetID() string {
+	return "arbetsformedlingen"
+}
+
+// GetName returns the connector name
+func (ac *ArbetsformedlingenConnector) GetName() string {
+	return "Arbetsförmedlingen Connector"
+}
+
 // NewArbetsformedlingenConnector creates a new connector
 func NewArbetsformedlingenConnector(store *storage.JobStore) *ArbetsformedlingenConnector {
 	return &ArbetsformedlingenConnector{

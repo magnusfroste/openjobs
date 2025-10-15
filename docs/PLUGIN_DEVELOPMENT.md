@@ -1,174 +1,375 @@
-# Job Platform Plugin Development Guide
+# OpenJobs Plugin Architecture & Development Guide
 
-This document provides guidelines for creating plugins that can integrate with the Job Platform.
+This document explains the **properly decoupled plugin architecture** of OpenJobs and provides guidelines for creating new plugins that can integrate seamlessly without modifying core code.
+
+## Plugin Architecture Overview
+
+OpenJobs implements a **clean plugin architecture** using Go interfaces and a registry pattern. This ensures:
+
+- **🔌 Zero Coupling**: Core system doesn't know about specific plugins
+- **📦 Easy Extension**: Add new connectors without touching core code
+- **🏗️ Clean Interfaces**: Standard contracts for all plugins
+- **🔄 Dynamic Loading**: Plugins register themselves at startup
+
+### Core Components
+
+```
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   Core System   │    │  PluginRegistry │    │    Connectors   │
+│                 │◄──►│                 │◄──►│                 │
+│  • API Server   │    │ • Register()    │    │ • Arbetsförmed  │
+│  • Scheduler    │    │ • GetConnector()│    │ • EURES/Adzuna │
+│  • Storage      │    │ • ListAll()     │    │ • Custom...     │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+```
 
 ## Plugin Overview
 
-Plugins extend the platform's capabilities by connecting to external job sources, transforming data formats, or adding new functionality.
+Plugins extend the platform's capabilities by connecting to external job sources. All plugins are implemented as Go modules and registered at runtime within the main application binary — no standalone binaries or external configuration files are used.
 
 ## Plugin Structure
 
 A typical plugin consists of:
 
 ```
-my-job-plugin/
-├── main.go              # Plugin entry point
-├── config.json          # Plugin configuration
-├── handlers/            # Plugin-specific handlers
-│   ├── api.go           # API integration handlers
-│   └── data.go          # Data transformation logic
+connectors/arbetsformedlingen/
+├── connector.go         # Implements PluginConnector interface
 ├── README.md            # Plugin documentation
 └── go.mod               # Go module dependencies
 ```
 
+All plugins must be located under the `connectors/` directory and compiled into the main binary. There is no external plugin loading mechanism.
+
 ## Plugin Types
 
 ### 1. Data Source Plugins
-Connect to external job platforms like Arbetsförmedlingen or LinkedIn.
-
-### 2. Transformation Plugins
-Convert data between different formats (XML, JSON, CSV).
-
-### 3. Synchronization Plugins
-Handle periodic data updates and real-time feeds.
+Connect to external job platforms like Arbetsförmedlingen or EURES via their public APIs.
 
 ## Development Process
 
-### Step 1: Create Plugin Module
-```bash
-mkdir my-job-plugin
-cd my-job-plugin
-go mod init my-job-plugin
-```
+### Step 1: Implement the PluginConnector Interface
+Create a new Go file in the `connectors/` directory that implements the `PluginConnector` interface from `pkg/models/plugin.go`:
 
-### Step 2: Define Configuration
-Create `config.json`:
-```json
-{
-  "name": "Arbetsförmedlingen Connector",
-  "version": "1.0.0",
-  "description": "Connects to Arbetsförmedlingen job data",
-  "source_url": "https://api.arbetsformedlingen.se",
-  "authentication": {
-    "type": "bearer_token",
-    "token": "your-api-token"
-  }
-}
-```
-
-### Step 3: Implement Plugin Logic
-In `main.go`:
 ```go
-package main
+package arbetsformedlingen
 
 import (
-    "encoding/json"
-    "fmt"
-    "net/http"
-    "time"
-    
-    "your-platform/pkg/models"
+	"openjobs/pkg/models"
+	"openjobs/pkg/storage"
 )
 
-type Plugin struct {
-    Name        string
-    Version     string
-    Config      PluginConfig
+type ArbetsformedlingenConnector struct {
+	store *storage.JobStore
 }
 
-type PluginConfig struct {
-    Name        string `json:"name"`
-    SourceURL   string `json:"source_url"`
-    Auth        Auth   `json:"authentication"`
+func NewArbetsformedlingenConnector(store *storage.JobStore) *ArbetsformedlingenConnector {
+	return &ArbetsformedlingenConnector{
+		store: store,
+	}
 }
 
-type Auth struct {
-    Type  string `json:"type"`
-    Token string `json:"token"`
+func (ac *ArbetsformedlingenConnector) GetID() string {
+	return "arbetsformedlingen"
 }
 
-func (p *Plugin) FetchJobs() ([]models.JobPost, error) {
-    // Implementation to fetch jobs from external source
-    client := &http.Client{Timeout: 30 * time.Second}
-    req, err := http.NewRequest("GET", p.Config.SourceURL, nil)
-    if err != nil {
-        return nil, err
-    }
-    
-    req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", p.Config.Auth.Token))
-    
-    resp, err := client.Do(req)
-    if err != nil {
-        return nil, err
-    }
-    defer resp.Body.Close()
-    
-    // Process response and convert to JobPost format
-    var jobs []models.JobPost
-    // ... conversion logic
-    
-    return jobs, nil
+func (ac *ArbetsformedlingenConnector) GetName() string {
+	return "Arbetsförmedlingen Connector"
 }
 
-func main() {
-    // Plugin initialization and registration
-    plugin := &Plugin{
-        Name:    "Arbetsförmedlingen Connector",
-        Version: "1.0.0",
-    }
-    
-    // Register with platform
-    fmt.Println("Plugin registered successfully")
+func (ac *ArbetsformedlingenConnector) FetchJobs() ([]models.JobPost, error) {
+	// Implement job fetching logic here
+	// Use environment variables for API keys (e.g., os.Getenv("ADZUNA_APP_ID"))
+	// Always fallback to demo data if keys are missing
+}
+
+func (ac *ArbetsformedlingenConnector) SyncJobs() error {
+	// Fetch jobs and store them using ac.store.CreateJob(&job)
+	// Handle deduplication by checking if job.ID already exists
+}
+```
+
+### Step 2: Register the Connector in the Scheduler
+Open `internal/scheduler/scheduler.go` and add your connector to the registry in the `NewScheduler()` function:
+
+```go
+func NewScheduler(store *storage.JobStore) *Scheduler {
+	registry := NewPluginRegistry()
+	
+	// Register your connector here
+	registry.Register(arbetsformedlingen.NewArbetsformedlingenConnector(store))
+	registry.Register(eures.NewEURESConnector(store))
+	
+	return &Scheduler{
+		store:      store,
+		registry:   registry,
+		ticker:     time.NewTicker(6 * time.Hour),
+	}
+}
+```
+
+### Step 3: Configure Environment Variables
+Use environment variables for sensitive configuration (API keys, URLs). Add your variables to `.env.example`:
+
+```bash
+# Example for EURES connector
+ADZUNA_APP_ID=your-app-id-here
+ADZUNA_APP_KEY=your-app-key-here
+
+# Example for Arbetsförmedlingen connector (if needed)
+ARBETSFORMEDLINGEN_API_KEY=your-api-token-here
+```
+
+Then load them in your connector using `os.Getenv()`:
+
+```go
+appID := os.Getenv("ADZUNA_APP_ID")
+if appID == "" {
+    log.Println("⚠️  Adzuna credentials not configured, using demo data")
+    return fetchDemoJobs()
+}
+```
+
+### Step 4: Write Tests
+Include unit tests for your connector logic:
+
+```go
+func TestFetchJobs(t *testing.T) {
+	store := &mockJobStore{}
+	connector := NewArbetsformedlingenConnector(store)
+	
+	jobs, err := connector.FetchJobs()
+	assert.NoError(t, err)
+	assert.Greater(t, len(jobs), 0)
 }
 ```
 
 ## Integration with Job Platform
 
-### API Integration
-Plugins can make HTTP requests to the platform's API:
+### Configuration Management
+All configuration is done via environment variables. No `config.json` files are used. Use `.env.example` as a template for required variables.
+
+### Data Transformation
+Transform external job data to the `models.JobPost` format. Ensure all required fields are populated and use the `Fields` map for source-specific metadata:
+
 ```go
-func (p *Plugin) SubmitJobs(jobs []models.JobPost) error {
-    url := "http://localhost:8080/jobs/create"
-    
-    for _, job := range jobs {
-        jsonData, err := json.Marshal(job)
-        if err != nil {
-            return err
-        }
-        
-        resp, err := http.Post(url, "application/json", bytes.NewBuffer(jsonData))
-        if err != nil {
-            return err
-        }
-        defer resp.Body.Close()
-    }
-    
-    return nil
+job := models.JobPost{
+	ID:              fmt.Sprintf("af-%s", afJob.ID),
+	Title:           afJob.Headline,
+	Company:         afJob.Employer.Name,
+	Description:     extractDescription(afJob),
+	Location:        formatLocation(afJob),
+	Salary:          afJob.SalaryDescription,
+	EmploymentType:  mapEmploymentType(afJob.EmploymentType.ConceptLabel),
+	ExperienceLevel: mapExperienceLevel(afJob.ExperienceRequired),
+	PostedDate:      parseAFDate(afJob.PublicationDate),
+	ExpiresDate:     parseAFDate(afJob.LastApplicationDate),
+	Fields: map[string]interface{}{
+		"source":       "arbetsformedlingen",
+		"source_url":   extractURL(afJob),
+		"original_id":  afJob.ID,
+		"country":      afJob.WorkplaceAddress.Country,
+		"region":       afJob.WorkplaceAddress.Region,
+		"municipality": afJob.WorkplaceAddress.Municipality,
+		"connector":    "arbetsformedlingen",
+		"fetched_at":   time.Now(),
+	},
 }
 ```
 
-### Data Transformation
-Convert external job data to platform format:
+## Testing Your Plugin
+
+### Unit Tests
+Include tests for `FetchJobs()` and `SyncJobs()`:
+
 ```go
-func (p *Plugin) TransformJob(sourceJob map[string]interface{}) models.JobPost {
-    job := models.JobPost{
-        Title:           sourceJob["title"].(string),
-        Company:         sourceJob["company"].(string),
-        Description:     sourceJob["description"].(string),
-        Location:        sourceJob["location"].(string),
-        Salary:          sourceJob["salary"].(string),
-        EmploymentType:  sourceJob["employment_type"].(string),
-        ExperienceLevel: sourceJob["experience_level"].(string),
-        PostedDate:      time.Now(),
-        ExpiresDate:     time.Now().AddDate(0, 6, 0),
-    }
-    
-    // Handle additional fields
-    if fields, ok := sourceJob["fields"].(map[string]interface{}); ok {
-        job.Fields = fields
-    }
-    
-    return job
+func TestSyncJobs(t *testing.T) {
+	store := &mockJobStore{}
+	connector := NewArbetsformedlingenConnector(store)
+	
+	err := connector.SyncJobs()
+	assert.NoError(t, err)
+	assert.Equal(t, 1, store.CreatedCount) // Verify job was stored
+}
+```
+
+## Deployment
+
+### Build and Run
+Plugins are compiled into the main binary. Build the entire application:
+
+```bash
+cd cmd/openjobs
+go build -o openjobs main.go
+./openjobs
+```
+
+### Production Deployment
+1. Build the application as a Docker container
+2. Push to container registry
+3. Set environment variables in deployment (e.g., Kubernetes secrets or Docker env)
+4. No plugin registration step is needed — connectors are compiled in
+
+## Best Practices
+
+1. **Error Handling**: Always implement robust error handling for HTTP requests and JSON parsing
+2. **Rate Limiting**: Respect API rate limits of external services (add delays if needed)
+3. **Logging**: Use `fmt.Println()` or `log.Printf()` for debugging during sync
+4. **Security**: Protect sensitive credentials with environment variables — never hardcode
+5. **Validation**: Validate all incoming data before storing in database
+6. **Documentation**: Document your connector’s API endpoints and required env vars in README.md
+7. **Testing**: Include unit tests for core logic — especially data transformation
+8. **Fallbacks**: Always provide demo data fallbacks when API keys are missing
+
+## Common Issues
+
+### Authentication Problems
+Ensure API tokens and credentials are properly configured in `.env` and loaded via `os.Getenv()`.
+
+### Data Mapping Issues
+Verify that field mappings between external sources and `models.JobPost` are correct. Use the `Fields` map for source-specific metadata.
+
+### Performance Bottlenecks
+Implement efficient data fetching and processing to handle large job datasets. Use pagination and batch processing if needed.
+
+## Support Resources
+
+- GitHub Repository: https://github.com/yourusername/job-platform
+- Documentation: https://github.com/yourusername/job-platform/wiki
+- Community Forum: https://github.com/yourusername/job-platform/discussions
+
+## Plugin Types
+
+### 1. Data Source Plugins
+Connect to external job platforms like Arbetsförmedlingen or EURES via their public APIs.
+
+## Development Process
+
+### Step 1: Implement the PluginConnector Interface
+Create a new Go file in the `connectors/` directory that implements the `PluginConnector` interface from `pkg/models/plugin.go`:
+
+```go
+package arbetsformedlingen
+
+import (
+	"openjobs/pkg/models"
+	"openjobs/pkg/storage"
+)
+
+type ArbetsformedlingenConnector struct {
+	store *storage.JobStore
+}
+
+func NewArbetsformedlingenConnector(store *storage.JobStore) *ArbetsformedlingenConnector {
+	return &ArbetsformedlingenConnector{
+		store: store,
+	}
+}
+
+func (ac *ArbetsformedlingenConnector) GetID() string {
+	return "arbetsformedlingen"
+}
+
+func (ac *ArbetsformedlingenConnector) GetName() string {
+	return "Arbetsförmedlingen Connector"
+}
+
+func (ac *ArbetsformedlingenConnector) FetchJobs() ([]models.JobPost, error) {
+	// Implement job fetching logic here
+	// Use environment variables for API keys (e.g., os.Getenv("ADZUNA_APP_ID"))
+	// Always fallback to demo data if keys are missing
+}
+
+func (ac *ArbetsformedlingenConnector) SyncJobs() error {
+	// Fetch jobs and store them using ac.store.CreateJob(&job)
+	// Handle deduplication by checking if job.ID already exists
+}
+```
+
+### Step 2: Register the Connector in the Scheduler
+Open `internal/scheduler/scheduler.go` and add your connector to the registry in the `NewScheduler()` function:
+
+```go
+func NewScheduler(store *storage.JobStore) *Scheduler {
+	registry := NewPluginRegistry()
+	
+	// Register your connector here
+	registry.Register(arbetsformedlingen.NewArbetsformedlingenConnector(store))
+	registry.Register(eures.NewEURESConnector(store))
+	
+	return &Scheduler{
+		store:      store,
+		registry:   registry,
+		ticker:     time.NewTicker(6 * time.Hour),
+	}
+}
+```
+
+### Step 3: Configure Environment Variables
+Use environment variables for sensitive configuration (API keys, URLs). Add your variables to `.env.example`:
+
+```bash
+# Example for EURES connector
+ADZUNA_APP_ID=your-app-id-here
+ADZUNA_APP_KEY=your-app-key-here
+
+# Example for Arbetsförmedlingen connector (if needed)
+ARBETSFORMEDLINGEN_API_KEY=your-api-token-here
+```
+
+Then load them in your connector using `os.Getenv()`:
+
+```go
+appID := os.Getenv("ADZUNA_APP_ID")
+if appID == "" {
+    log.Println("⚠️  Adzuna credentials not configured, using demo data")
+    return fetchDemoJobs()
+}
+```
+
+### Step 4: Write Tests
+Include unit tests for your connector logic:
+
+```go
+func TestFetchJobs(t *testing.T) {
+	store := &mockJobStore{}
+	connector := NewArbetsformedlingenConnector(store)
+	
+	jobs, err := connector.FetchJobs()
+	assert.NoError(t, err)
+	assert.Greater(t, len(jobs), 0)
+}
+```
+
+## Integration with Job Platform
+
+### Configuration Management
+All configuration is done via environment variables. No `config.json` files are used. Use `.env.example` as a template for required variables.
+
+### Data Transformation
+Transform external job data to the `models.JobPost` format. Ensure all required fields are populated and use the `Fields` map for source-specific metadata:
+
+```go
+job := models.JobPost{
+	ID:              fmt.Sprintf("af-%s", afJob.ID),
+	Title:           afJob.Headline,
+	Company:         afJob.Employer.Name,
+	Description:     extractDescription(afJob),
+	Location:        formatLocation(afJob),
+	Salary:          afJob.SalaryDescription,
+	EmploymentType:  mapEmploymentType(afJob.EmploymentType.ConceptLabel),
+	ExperienceLevel: mapExperienceLevel(afJob.ExperienceRequired),
+	PostedDate:      parseAFDate(afJob.PublicationDate),
+	ExpiresDate:     parseAFDate(afJob.LastApplicationDate),
+	Fields: map[string]interface{}{
+		"source":       "arbetsformedlingen",
+		"source_url":   extractURL(afJob),
+		"original_id":  afJob.ID,
+		"country":      afJob.WorkplaceAddress.Country,
+		"region":       afJob.WorkplaceAddress.Region,
+		"municipality": afJob.WorkplaceAddress.Municipality,
+		"connector":    "arbetsformedlingen",
+		"fetched_at":   time.Now(),
+	},
 }
 ```
 
@@ -219,21 +420,20 @@ func TestTransformJob(t *testing.T) {
 
 ## Deployment
 
-### Local Testing
-```bash
-# Build plugin
-go build -o my-plugin main.go
+### Build and Run
+Plugins are compiled into the main binary. Build the entire application:
 
-# Run plugin
-./my-plugin
+```bash
+cd cmd/openjobs
+go build -o openjobs main.go
+./openjobs
 ```
 
 ### Production Deployment
-1. Package plugin as Docker container
+1. Build the application as a Docker container
 2. Push to container registry
-3. Configure in platform's plugin manager
-4. Set environment variables
-5. Schedule periodic execution if needed
+3. Set environment variables in deployment (e.g., Kubernetes secrets or Docker env)
+4. No plugin registration step is needed — connectors are compiled in
 
 ## Best Practices
 
