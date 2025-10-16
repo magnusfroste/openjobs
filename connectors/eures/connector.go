@@ -244,8 +244,20 @@ func (ec *EURESConnector) transformAdzunaJob(aj AdzunaJob) models.JobPost {
 		},
 	}
 
-	// Handle salary
+	// Handle salary - Adzuna provides structured salary data!
 	if aj.SalaryMin > 0 || aj.SalaryMax > 0 {
+		// Populate structured fields for LazyJobs matching
+		if aj.SalaryMin > 0 {
+			salaryMin := int(aj.SalaryMin)
+			job.SalaryMin = &salaryMin
+		}
+		if aj.SalaryMax > 0 {
+			salaryMax := int(aj.SalaryMax)
+			job.SalaryMax = &salaryMax
+		}
+		job.SalaryCurrency = "EUR"
+		
+		// Also create human-readable string
 		if aj.SalaryMin > 0 && aj.SalaryMax > 0 {
 			job.Salary = fmt.Sprintf("€%.0f - €%.0f", aj.SalaryMin, aj.SalaryMax)
 		} else if aj.SalaryMin > 0 {
