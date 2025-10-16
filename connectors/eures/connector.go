@@ -309,16 +309,31 @@ func (ec *EURESConnector) mapExperienceLevel(euresExp string) string {
 
 // SyncJobs fetches jobs from EURES and stores them in the database
 func (ec *EURESConnector) SyncJobs() error {
+	startTime := time.Now()
 	fmt.Println("🔄 Starting EURES job sync...")
 
 	jobs, err := ec.FetchJobs()
 	if err != nil {
+		// Log failed sync
+		if logErr := ec.store.LogSync(&models.SyncLog{
+			ConnectorName:  ec.GetID(),
+			StartedAt:      startTime,
+			CompletedAt:    time.Now(),
+			JobsFetched:    0,
+			JobsInserted:   0,
+			JobsDuplicates: 0,
+			Status:         "error",
+			ErrorMessage:   err.Error(),
+		}); logErr != nil {
+			fmt.Printf("⚠️  Failed to log sync: %v\n", logErr)
+		}
 		return fmt.Errorf("failed to fetch jobs from EURES: %w", err)
 	}
 
 	fmt.Printf("📥 Fetched %d jobs from EURES\n", len(jobs))
 
 	stored := 0
+	duplicates := 0
 	for _, job := range jobs {
 		// Check if job already exists (by source ID)
 		existing, err := ec.store.GetJob(job.ID)
@@ -329,6 +344,7 @@ func (ec *EURESConnector) SyncJobs() error {
 
 		if existing != nil {
 			// Job already exists, skip
+			duplicates++
 			continue
 		}
 
@@ -343,6 +359,19 @@ func (ec *EURESConnector) SyncJobs() error {
 		fmt.Printf("✅ Stored job: %s\n", job.Title)
 	}
 
-	fmt.Printf("🎉 EURES sync complete! Stored %d new jobs\n", stored)
+	// Log successful sync
+	if err := ec.store.LogSync(&models.SyncLog{
+		ConnectorName:  ec.GetID(),
+		StartedAt:      startTime,
+		CompletedAt:    time.Now(),
+		JobsFetched:    len(jobs),
+		JobsInserted:   stored,
+		JobsDuplicates: duplicates,
+		Status:         "success",
+	}); err != nil {
+		fmt.Printf("⚠️  Failed to log sync: %v\n", err)
+	}
+
+	fmt.Printf("🎉 EURES sync complete! Fetched: %d, Inserted: %d, Duplicates: %d\n", len(jobs), stored, duplicates)
 	return nil
 }

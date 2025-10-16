@@ -258,6 +258,10 @@ func main() {
 	fmt.Println("📝 Registering route: /analytics")
 	http.HandleFunc("/analytics", createAnalyticsHandler(server))
 
+	// Sync logs route
+	fmt.Println("📝 Registering route: /sync/logs")
+	http.HandleFunc("/sync/logs", server.SyncLogsHandler)
+
 	// Start server
 	port := os.Getenv("PORT")
 	if port == "" {

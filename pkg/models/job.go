@@ -62,3 +62,25 @@ type APIResponse struct {
 	Data    interface{} `json:"data"`
 	Message string      `json:"message,omitempty"`
 }
+
+// SyncLog represents a connector sync operation log
+type SyncLog struct {
+	ID             string    `json:"id,omitempty" db:"id"`
+	ConnectorName  string    `json:"connector_name" db:"connector_name"`
+	StartedAt      time.Time `json:"started_at" db:"started_at"`
+	CompletedAt    time.Time `json:"completed_at" db:"completed_at"`
+	JobsFetched    int       `json:"jobs_fetched" db:"jobs_fetched"`
+	JobsInserted   int       `json:"jobs_inserted" db:"jobs_inserted"`
+	JobsDuplicates int       `json:"jobs_duplicates" db:"jobs_duplicates"`
+	Status         string    `json:"status" db:"status"` // success, error, partial
+	ErrorMessage   string    `json:"error_message,omitempty" db:"error_message"`
+	CreatedAt      time.Time `json:"created_at,omitempty" db:"created_at"`
+}
+
+// SyncResult represents the result of a sync operation
+type SyncResult struct {
+	Fetched    int
+	Inserted   int
+	Duplicates int
+	Errors     []string
+}

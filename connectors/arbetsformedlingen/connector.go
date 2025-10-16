@@ -400,16 +400,29 @@ func (ac *ArbetsformedlingenConnector) parseAFDate(dateStr string) time.Time {
 
 // SyncJobs fetches jobs from Arbetsförmedlingen and stores them
 func (ac *ArbetsformedlingenConnector) SyncJobs() error {
+	startTime := time.Now()
 	fmt.Println("🔄 Starting Arbetsförmedlingen job sync...")
 
 	jobs, err := ac.FetchJobs()
 	if err != nil {
+		// Log failed sync
+		ac.store.LogSync(&models.SyncLog{
+			ConnectorName: ac.GetID(),
+			StartedAt:     startTime,
+			CompletedAt:   time.Now(),
+			JobsFetched:   0,
+			JobsInserted:  0,
+			JobsDuplicates: 0,
+			Status:        "error",
+			ErrorMessage:  err.Error(),
+		})
 		return fmt.Errorf("failed to fetch jobs from Arbetsförmedlingen: %w", err)
 	}
 
 	fmt.Printf("📥 Fetched %d jobs from Arbetsförmedlingen\n", len(jobs))
 
 	stored := 0
+	duplicates := 0
 	for _, job := range jobs {
 		// Check if job already exists
 		existing, err := ac.store.GetJob(job.ID)
@@ -420,6 +433,7 @@ func (ac *ArbetsformedlingenConnector) SyncJobs() error {
 
 		if existing != nil {
 			// Job already exists, skip
+			duplicates++
 			continue
 		}
 
@@ -434,6 +448,19 @@ func (ac *ArbetsformedlingenConnector) SyncJobs() error {
 		fmt.Printf("✅ Stored job: %s at %s\n", job.Title, job.Company)
 	}
 
-	fmt.Printf("🎉 Arbetsförmedlingen sync complete! Stored %d new jobs\n", stored)
+	// Log successful sync
+	if err := ac.store.LogSync(&models.SyncLog{
+		ConnectorName:  ac.GetID(),
+		StartedAt:      startTime,
+		CompletedAt:    time.Now(),
+		JobsFetched:    len(jobs),
+		JobsInserted:   stored,
+		JobsDuplicates: duplicates,
+		Status:         "success",
+	}); err != nil {
+		fmt.Printf("⚠️  Failed to log sync: %v\n", err)
+	}
+
+	fmt.Printf("🎉 Arbetsförmedlingen sync complete! Fetched: %d, Inserted: %d, Duplicates: %d\n", len(jobs), stored, duplicates)
 	return nil
 }

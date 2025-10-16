@@ -170,10 +170,41 @@ func (s *Server) DashboardHandler(w http.ResponseWriter, r *http.Request) {
             cursor: not-allowed;
         }
         .loading { color: #95a5a6; }
+        .sync-log-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+        .sync-log-table th {
+            text-align: left;
+            padding: 0.75rem;
+            background: #f8f9fa;
+            border-bottom: 2px solid #e1e8ed;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+        .sync-log-table td {
+            padding: 0.75rem;
+            border-bottom: 1px solid #e1e8ed;
+        }
+        .sync-log-table tr:hover {
+            background: #f8f9fa;
+        }
+        .efficiency-badge {
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+        .efficiency-high { background: #d4edda; color: #155724; }
+        .efficiency-medium { background: #fff3cd; color: #856404; }
+        .efficiency-low { background: #f8d7da; color: #721c24; }
         @media (max-width: 768px) {
             .container { padding: 1rem; }
             .header { flex-direction: column; align-items: flex-start; }
             .stats-grid { grid-template-columns: 1fr; }
+            .sync-log-table { font-size: 0.8rem; }
+            .sync-log-table th, .sync-log-table td { padding: 0.5rem; }
         }
     </style>
 </head>
@@ -210,6 +241,13 @@ func (s *Server) DashboardHandler(w http.ResponseWriter, r *http.Request) {
             <div class="section-title">Plugin Status</div>
             <div class="plugin-grid" id="plugin-status">
                 <div class="loading">Loading plugins...</div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Sync History</div>
+            <div id="sync-log">
+                <div class="loading">Loading sync history...</div>
             </div>
         </div>
 
@@ -265,6 +303,37 @@ func (s *Server) DashboardHandler(w http.ResponseWriter, r *http.Request) {
                 }
                 document.getElementById('plugin-status').innerHTML = pluginHtml;
 
+                // Fetch real sync logs from API
+                const logsRes = await fetch('/sync/logs');
+                const logsData = await logsRes.json();
+
+                if (logsData.success && logsData.data && logsData.data.length > 0) {
+                    let logHtml = '<table class="sync-log-table"><thead><tr>' +
+                        '<th>Plugin</th><th>Time</th><th>Fetched</th><th>Inserted</th><th>Duplicates</th><th>Efficiency</th>' +
+                        '</tr></thead><tbody>';
+                    
+                    logsData.data.forEach(log => {
+                        const efficiency = log.jobs_fetched > 0 ? Math.round((log.jobs_inserted / log.jobs_fetched) * 100) : 0;
+                        const efficiencyClass = efficiency > 80 ? 'efficiency-high' : efficiency > 50 ? 'efficiency-medium' : 'efficiency-low';
+                        const timeAgo = getTimeAgo(new Date(log.started_at));
+                        const pluginName = log.connector_name.charAt(0).toUpperCase() + log.connector_name.slice(1);
+                        
+                        logHtml += '<tr>' +
+                            '<td><strong>' + pluginName + '</strong></td>' +
+                            '<td>' + timeAgo + '</td>' +
+                            '<td>' + log.jobs_fetched + '</td>' +
+                            '<td><strong>' + log.jobs_inserted + '</strong></td>' +
+                            '<td>' + log.jobs_duplicates + '</td>' +
+                            '<td><span class="efficiency-badge ' + efficiencyClass + '">' + efficiency + '%</span></td>' +
+                            '</tr>';
+                    });
+                    
+                    logHtml += '</tbody></table>';
+                    document.getElementById('sync-log').innerHTML = logHtml;
+                } else {
+                    document.getElementById('sync-log').innerHTML = '<div style="color: #7f8c8d; text-align: center; padding: 2rem;">No sync history yet. Run a sync to see data.</div>';
+                }
+
             } catch (error) {
                 console.error('Error loading dashboard:', error);
                 document.getElementById('total-jobs').textContent = '100+';
@@ -294,6 +363,16 @@ func (s *Server) DashboardHandler(w http.ResponseWriter, r *http.Request) {
                     btn.textContent = 'Sync All Plugins';
                 }, 2000);
             }
+        }
+
+        function getTimeAgo(date) {
+            const seconds = Math.floor((new Date() - date) / 1000);
+            if (seconds < 60) return seconds + 's ago';
+            const minutes = Math.floor(seconds / 60);
+            if (minutes < 60) return minutes + 'm ago';
+            const hours = Math.floor(minutes / 60);
+            if (hours < 24) return hours + 'h ago';
+            return Math.floor(hours / 24) + 'd ago';
         }
 
         document.addEventListener('DOMContentLoaded', loadDashboard);
@@ -577,6 +656,35 @@ func (s *Server) DeleteJob(w http.ResponseWriter, r *http.Request) {
 	response := models.APIResponse{
 		Success: true,
 		Message: "Job deleted successfully",
+	}
+
+	json.NewEncoder(w).Encode(response)
+}
+
+// SyncLogsHandler handles GET /sync/logs - Get recent sync logs
+func (s *Server) SyncLogsHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	// Get recent sync logs (last 20)
+	logs, err := s.jobStore.GetRecentSyncLogs(20)
+	if err != nil {
+		response := models.APIResponse{
+			Success: false,
+			Message: fmt.Sprintf("Failed to fetch sync logs: %v", err),
+			Data:    []models.SyncLog{},
+		}
+		json.NewEncoder(w).Encode(response)
+		return
+	}
+
+	response := models.APIResponse{
+		Success: true,
+		Data:    logs,
 	}
 
 	json.NewEncoder(w).Encode(response)

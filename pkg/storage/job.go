@@ -197,3 +197,67 @@ func (js *JobStore) DeleteJob(id string) error {
 
 	return nil
 }
+
+// LogSync creates a sync log entry
+func (js *JobStore) LogSync(log *models.SyncLog) error {
+	logJSON, err := json.Marshal(log)
+	if err != nil {
+		return fmt.Errorf("failed to marshal sync log: %w", err)
+	}
+
+	url := fmt.Sprintf("%s/rest/v1/sync_logs", js.supabaseURL)
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(logJSON))
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", js.supabaseKey))
+	req.Header.Set("apikey", js.supabaseKey)
+	req.Header.Set("Prefer", "return=representation")
+
+	resp, err := js.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to execute request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("supabase error %d: %s", resp.StatusCode, string(body))
+	}
+
+	fmt.Printf("📊 Sync log created: %s - Fetched: %d, Inserted: %d, Duplicates: %d\n",
+		log.ConnectorName, log.JobsFetched, log.JobsInserted, log.JobsDuplicates)
+	return nil
+}
+
+// GetRecentSyncLogs retrieves recent sync logs
+func (js *JobStore) GetRecentSyncLogs(limit int) ([]models.SyncLog, error) {
+	url := fmt.Sprintf("%s/rest/v1/sync_logs?order=started_at.desc&limit=%d", js.supabaseURL, limit)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", js.supabaseKey))
+	req.Header.Set("apikey", js.supabaseKey)
+
+	resp, err := js.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("supabase error %d: %s", resp.StatusCode, string(body))
+	}
+
+	var logs []models.SyncLog
+	if err := json.NewDecoder(resp.Body).Decode(&logs); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	return logs, nil
+}
