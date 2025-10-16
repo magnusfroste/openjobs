@@ -235,6 +235,7 @@ func (ac *ArbetsformedlingenConnector) transformAFJob(af AFJob) models.JobPost {
 			"source_url":                 url,
 			"original_id":                af.ID,
 			"connector":                  "arbetsformedlingen",
+			"language":                   ac.detectLanguage(af.Description.Text), // Detect Swedish vs English
 			"fetched_at":                 time.Now(),
 			// Location details
 			"country":                    af.WorkplaceAddress.Country,
@@ -339,6 +340,50 @@ func (ac *ArbetsformedlingenConnector) mapExperienceLevel(required bool) string 
 		return "Mid-level"
 	}
 	return "Entry-level"
+}
+
+// detectLanguage determines if job posting is in Swedish or English
+// by analyzing common words in the description text
+func (ac *ArbetsformedlingenConnector) detectLanguage(text string) string {
+	text = strings.ToLower(text)
+	
+	// Swedish indicators (common words)
+	swedishWords := []string{
+		" är ", " och ", " för ", " med ", " att ", " du ", " vi ", " som ",
+		" vill ", " söker ", " arbeta ", " företag ", " hos ", " till ", " på ",
+	}
+	
+	// English indicators (common words)
+	englishWords := []string{
+		" is ", " and ", " for ", " with ", " to ", " you ", " we ", " as ",
+		" want ", " looking ", " work ", " company ", " at ", " the ", " in ",
+	}
+	
+	swedishCount := 0
+	englishCount := 0
+	
+	for _, word := range swedishWords {
+		if strings.Contains(text, word) {
+			swedishCount++
+		}
+	}
+	
+	for _, word := range englishWords {
+		if strings.Contains(text, word) {
+			englishCount++
+		}
+	}
+	
+	// Require at least 3 matches to be confident
+	if swedishCount >= 3 && swedishCount > englishCount {
+		return "sv"
+	}
+	if englishCount >= 3 && englishCount > swedishCount {
+		return "en"
+	}
+	
+	// Default to Swedish (Arbetsförmedlingen is Swedish service)
+	return "sv"
 }
 
 // extractRequirements extracts ALL job requirements for matching
