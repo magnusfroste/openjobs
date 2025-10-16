@@ -88,55 +88,51 @@ func (s *Server) DashboardHandler(w http.ResponseWriter, r *http.Request) {
         }
         .header h1 {
             font-size: 1.75rem;
-            font-weight: 600;
-            color: #2c3e50;
+            color: var(--text-primary);
+            margin-bottom: 0.25rem;
         }
-        .header .subtitle {
-            color: #7f8c8d;
+        .subtitle {
+            color: var(--text-secondary);
             font-size: 0.9rem;
-            margin-top: 0.25rem;
         }
         .stats-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
             gap: 1.5rem;
             margin-bottom: 2rem;
         }
         .stat-card {
-            background: white;
+            background: var(--card-bg);
             padding: 1.5rem;
             border-radius: 12px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-            transition: transform 0.2s, box-shadow 0.2s;
-        }
-        .stat-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+            box-shadow: 0 2px 8px var(--shadow);
+            transition: background 0.3s ease;
         }
         .stat-label {
+            color: var(--text-secondary);
             font-size: 0.85rem;
-            color: #7f8c8d;
             text-transform: uppercase;
             letter-spacing: 0.5px;
             margin-bottom: 0.5rem;
         }
         .stat-value {
-            font-size: 2.5rem;
+            font-size: 2rem;
             font-weight: 700;
-            color: #2c3e50;
+            color: var(--text-primary);
         }
         .section {
-            background: white;
-            padding: 1.5rem;
+            background: var(--card-bg);
+            padding: 2rem;
             border-radius: 12px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-            margin-bottom: 1.5rem;
+            box-shadow: 0 2px 8px var(--shadow);
+            margin-bottom: 2rem;
+            transition: background 0.3s ease;
         }
         .section-title {
-            font-size: 1.1rem;
+            font-size: 1.25rem;
+            color: var(--text-primary);
+            margin-bottom: 1.5rem;
             font-weight: 600;
-            margin-bottom: 1rem;
-            color: #2c3e50;
         }
         .plugin-grid {
             display: grid;
@@ -144,23 +140,15 @@ func (s *Server) DashboardHandler(w http.ResponseWriter, r *http.Request) {
             gap: 1rem;
         }
         .plugin-card {
-            border: 1px solid #e1e8ed;
+            border: 1px solid var(--border-color);
             border-radius: 8px;
             padding: 1rem;
-            transition: border-color 0.2s;
-        }
-        .plugin-card:hover {
-            border-color: #3498db;
-        }
-        .plugin-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+            transition: border-color 0.3s ease;
             margin-bottom: 0.75rem;
         }
         .plugin-name {
             font-weight: 600;
-            color: #2c3e50;
+            color: var(--text-primary);
         }
         .status-badge {
             padding: 0.25rem 0.75rem;
@@ -175,7 +163,7 @@ func (s *Server) DashboardHandler(w http.ResponseWriter, r *http.Request) {
             display: flex;
             gap: 1rem;
             font-size: 0.85rem;
-            color: #7f8c8d;
+            color: var(--text-secondary);
         }
         .action-btn {
             background: #3498db;
@@ -203,17 +191,18 @@ func (s *Server) DashboardHandler(w http.ResponseWriter, r *http.Request) {
         .sync-log-table th {
             text-align: left;
             padding: 0.75rem;
-            background: #f8f9fa;
-            border-bottom: 2px solid #e1e8ed;
+            background: var(--table-header-bg);
+            border-bottom: 2px solid var(--border-color);
             font-weight: 600;
-            color: #2c3e50;
+            color: var(--text-primary);
         }
         .sync-log-table td {
             padding: 0.75rem;
-            border-bottom: 1px solid #e1e8ed;
+            border-bottom: 1px solid var(--border-color);
+            color: var(--text-primary);
         }
         .sync-log-table tr:hover {
-            background: #f8f9fa;
+            background: var(--table-hover-bg);
         }
         .efficiency-badge {
             padding: 0.25rem 0.5rem;
@@ -240,7 +229,12 @@ func (s *Server) DashboardHandler(w http.ResponseWriter, r *http.Request) {
                 <h1>OpenJobs Dashboard</h1>
                 <div class="subtitle">Microservices Job Aggregation Platform</div>
             </div>
-            <button class="action-btn" onclick="triggerSync()">Sync All Plugins</button>
+            <div style="display: flex; gap: 1rem; align-items: center;">
+                <button class="action-btn" onclick="toggleTheme()" style="background: #95a5a6;" title="Toggle dark mode">
+                    <span id="theme-icon">🌙</span>
+                </button>
+                <button class="action-btn" onclick="triggerSync()">Sync All Plugins</button>
+            </div>
         </div>
 
         <div class="stats-grid">
@@ -400,7 +394,28 @@ func (s *Server) DashboardHandler(w http.ResponseWriter, r *http.Request) {
             return Math.floor(hours / 24) + 'd ago';
         }
 
-        document.addEventListener('DOMContentLoaded', loadDashboard);
+        function toggleTheme() {
+            const html = document.documentElement;
+            const currentTheme = html.getAttribute('data-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            const icon = document.getElementById('theme-icon');
+            
+            html.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+            icon.textContent = newTheme === 'dark' ? '☀️' : '🌙';
+        }
+
+        function initTheme() {
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            const icon = document.getElementById('theme-icon');
+            document.documentElement.setAttribute('data-theme', savedTheme);
+            icon.textContent = savedTheme === 'dark' ? '☀️' : '🌙';
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            initTheme();
+            loadDashboard();
+        });
         setInterval(loadDashboard, 30000); // Refresh every 30 seconds
     </script>
 </body>
