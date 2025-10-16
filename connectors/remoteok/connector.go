@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"regexp"
 	"strings"
 	"time"
 
@@ -143,24 +142,10 @@ func (rc *RemoteOKConnector) transformRemoteOKJob(rj RemoteOKJob) models.JobPost
 	return job
 }
 
-// stripHTML removes HTML tags from text to provide clean, consistent descriptions
-func stripHTML(html string) string {
-	// Remove HTML tags
-	re := regexp.MustCompile(`<[^>]*>`)
-	text := re.ReplaceAllString(html, "")
-	
-	// Clean up extra whitespace
-	text = strings.TrimSpace(text)
-	text = regexp.MustCompile(`\s+`).ReplaceAllString(text, " ")
-	
-	return text
-}
-
 // extractDescription uses the description or creates a simple one
-// Strips HTML to provide clean, consistent text for all consumers
 func (rc *RemoteOKConnector) extractDescription(rj RemoteOKJob) string {
 	if rj.Description != "" {
-		return stripHTML(rj.Description) // Clean HTML tags
+		return rj.Description
 	}
 	return fmt.Sprintf("Remote %s position at %s", rj.Position, rj.Company)
 }
