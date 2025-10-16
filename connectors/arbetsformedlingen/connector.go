@@ -20,37 +20,101 @@ type ArbetsformedlingenConnector struct {
 	userAgent string
 }
 
-// AFJob represents a job from Arbetsförmedlingen API
+// AFJob represents a job from Arbetsförmedlingen JobSearch API
 type AFJob struct {
 	ID          string `json:"id"`
 	Headline    string `json:"headline"`
 	Description struct {
-		Text string `json:"text"`
+		Text            string `json:"text"`
+		TextFormatted   string `json:"text_formatted"`
+		Requirements    string `json:"requirements"`
+		Conditions      string `json:"conditions"`
 	} `json:"description"`
 	Employer struct {
-		Name string `json:"name"`
+		Name               string `json:"name"`
+		Workplace          string `json:"workplace"`
+		OrganizationNumber string `json:"organization_number"`
+		URL                string `json:"url"`
 	} `json:"employer"`
 	WorkplaceAddress struct {
-		Municipality string `json:"municipality"`
-		Region       string `json:"region"`
-		Country      string `json:"country"`
+		Municipality string    `json:"municipality"`
+		Region       string    `json:"region"`
+		Country      string    `json:"country"`
+		Coordinates  []float64 `json:"coordinates"`
 	} `json:"workplace_address"`
+	SalaryType struct {
+		Label string `json:"label"`
+	} `json:"salary_type"`
 	SalaryDescription string `json:"salary_description"`
-	EmploymentType    struct {
-		ConceptLabel string `json:"concept_label"`
+	EmploymentType struct {
+		Label string `json:"label"`
 	} `json:"employment_type"`
-	ExperienceRequired bool `json:"experience_required"`
+	Duration struct {
+		Label string `json:"label"`
+	} `json:"duration"`
+	WorkingHoursType struct {
+		Label string `json:"label"`
+	} `json:"working_hours_type"`
+	ScopeOfWork struct {
+		Min int `json:"min"`
+		Max int `json:"max"`
+	} `json:"scope_of_work"`
+	Occupation struct {
+		Label string `json:"label"`
+	} `json:"occupation"`
+	OccupationGroup struct {
+		Label string `json:"label"`
+	} `json:"occupation_group"`
+	OccupationField struct {
+		Label string `json:"label"`
+	} `json:"occupation_field"`
+	MustHave struct {
+		Skills []struct {
+			Label string `json:"label"`
+		} `json:"skills"`
+		Languages []struct {
+			Label string `json:"label"`
+		} `json:"languages"`
+		WorkExperiences []struct {
+			Label string `json:"label"`
+		} `json:"work_experiences"`
+		Education []struct {
+			Label string `json:"label"`
+		} `json:"education"`
+		EducationLevel []struct {
+			Label string `json:"label"`
+		} `json:"education_level"`
+	} `json:"must_have"`
+	NiceToHave struct {
+		Skills []struct {
+			Label string `json:"label"`
+		} `json:"skills"`
+		Languages []struct {
+			Label string `json:"label"`
+		} `json:"languages"`
+		WorkExperiences []struct {
+			Label string `json:"label"`
+		} `json:"work_experiences"`
+		Education []struct {
+			Label string `json:"label"`
+		} `json:"education"`
+		EducationLevel []struct {
+			Label string `json:"label"`
+		} `json:"education_level"`
+	} `json:"nice_to_have"`
+	ExperienceRequired     bool `json:"experience_required"`
+	DrivingLicenseRequired bool `json:"driving_license_required"`
+	DrivingLicense         []struct {
+		Label string `json:"label"`
+	} `json:"driving_license"`
 	ApplicationDetails struct {
-		Information []struct {
-			Headline string `json:"headline"`
-			Text     string `json:"text"`
-		} `json:"information"`
+		URL       string `json:"url"`
+		Email     string `json:"email"`
+		Reference string `json:"reference"`
 	} `json:"application_details"`
+	ApplicationDeadline string `json:"application_deadline"`
 	PublicationDate     string `json:"publication_date"`
-	LastApplicationDate string `json:"last_application_date"`
-	SourceLinks         []struct {
-		URL string `json:"url"`
-	} `json:"source_links"`
+	LastPublicationDate string `json:"last_publication_date"`
 }
 
 // AFResponse represents the API response
@@ -75,15 +139,15 @@ func (ac *ArbetsformedlingenConnector) GetName() string {
 func NewArbetsformedlingenConnector(store *storage.JobStore) *ArbetsformedlingenConnector {
 	return &ArbetsformedlingenConnector{
 		store:     store,
-		baseURL:   "https://links.api.jobtechdev.se",
+		baseURL:   "https://jobsearch.api.jobtechdev.se",
 		userAgent: "OpenJobs-Arbetsformedlingen-Connector/1.0",
 	}
 }
 
 // FetchJobs fetches job listings from Arbetsförmedlingen
 func (ac *ArbetsformedlingenConnector) FetchJobs() ([]models.JobPost, error) {
-	// Arbetsförmedlingen JobTech API endpoint
-	url := fmt.Sprintf("%s/joblinks", ac.baseURL)
+	// Arbetsförmedlingen JobSearch API endpoint (full data with skills)
+	url := fmt.Sprintf("%s/search", ac.baseURL)
 
 	// Create request with parameters for recent IT jobs
 	req, err := http.NewRequest("GET", url, nil)
@@ -160,21 +224,56 @@ func (ac *ArbetsformedlingenConnector) transformAFJob(af AFJob) models.JobPost {
 		SalaryCurrency:  currency,
 		IsRemote:        isRemote,
 		URL:             url,
-		EmploymentType:  ac.mapEmploymentType(af.EmploymentType.ConceptLabel),
+		EmploymentType:  ac.mapEmploymentType(af.EmploymentType.Label),
 		ExperienceLevel: ac.mapExperienceLevel(af.ExperienceRequired),
 		PostedDate:      ac.parseAFDate(af.PublicationDate),
-		ExpiresDate:     ac.parseAFDate(af.LastApplicationDate),
+		ExpiresDate:     ac.parseAFDate(af.ApplicationDeadline),
 		Requirements:    ac.extractRequirements(af),
 		Benefits:        ac.extractBenefits(af),
 		Fields: map[string]interface{}{
-			"source":       "arbetsformedlingen",
-			"source_url":   url,
-			"original_id":  af.ID,
-			"country":      af.WorkplaceAddress.Country,
-			"region":       af.WorkplaceAddress.Region,
-			"municipality": af.WorkplaceAddress.Municipality,
-			"connector":    "arbetsformedlingen",
-			"fetched_at":   time.Now(),
+			"source":                     "arbetsformedlingen",
+			"source_url":                 url,
+			"original_id":                af.ID,
+			"connector":                  "arbetsformedlingen",
+			"fetched_at":                 time.Now(),
+			// Location details
+			"country":                    af.WorkplaceAddress.Country,
+			"region":                     af.WorkplaceAddress.Region,
+			"municipality":               af.WorkplaceAddress.Municipality,
+			"coordinates":                af.WorkplaceAddress.Coordinates,
+			// Occupation hierarchy
+			"occupation":                 af.Occupation.Label,
+			"occupation_group":           af.OccupationGroup.Label,
+			"occupation_field":           af.OccupationField.Label,
+			// Employment details
+			"salary_type":                af.SalaryType.Label,
+			"duration":                   af.Duration.Label,
+			"working_hours":              af.WorkingHoursType.Label,
+			"scope_of_work_min":          af.ScopeOfWork.Min,
+			"scope_of_work_max":          af.ScopeOfWork.Max,
+			// Application details
+			"application_deadline":       af.ApplicationDeadline,
+			"application_email":          af.ApplicationDetails.Email,
+			"application_reference":      af.ApplicationDetails.Reference,
+			"last_publication_date":      af.LastPublicationDate,
+			// Requirements (structured)
+			"must_have_skills":           ac.extractSkillLabels(af.MustHave.Skills),
+			"nice_to_have_skills":        ac.extractSkillLabels(af.NiceToHave.Skills),
+			"must_have_languages":        ac.extractSkillLabels(af.MustHave.Languages),
+			"must_have_work_experiences": ac.extractSkillLabels(af.MustHave.WorkExperiences),
+			"must_have_education":        ac.extractSkillLabels(af.MustHave.Education),
+			"must_have_education_level":  ac.extractSkillLabels(af.MustHave.EducationLevel),
+			"nice_to_have_languages":     ac.extractSkillLabels(af.NiceToHave.Languages),
+			"nice_to_have_work_experiences": ac.extractSkillLabels(af.NiceToHave.WorkExperiences),
+			"nice_to_have_education":     ac.extractSkillLabels(af.NiceToHave.Education),
+			// Flags
+			"experience_required":        af.ExperienceRequired,
+			"driving_license_required":   af.DrivingLicenseRequired,
+			"driving_license_types":      ac.extractSkillLabels(af.DrivingLicense),
+			// Employer details
+			"employer_workplace":         af.Employer.Workplace,
+			"employer_organization_number": af.Employer.OrganizationNumber,
+			"employer_url":               af.Employer.URL,
 		},
 	}
 
@@ -185,16 +284,21 @@ func (ac *ArbetsformedlingenConnector) transformAFJob(af AFJob) models.JobPost {
 func (ac *ArbetsformedlingenConnector) extractDescription(af AFJob) string {
 	descriptions := []string{}
 
-	// Main description
-	if af.Description.Text != "" {
+	// Main description (use formatted if available, otherwise plain text)
+	if af.Description.TextFormatted != "" {
+		descriptions = append(descriptions, af.Description.TextFormatted)
+	} else if af.Description.Text != "" {
 		descriptions = append(descriptions, af.Description.Text)
 	}
 
-	// Additional information from application details
-	for _, info := range af.ApplicationDetails.Information {
-		if info.Text != "" {
-			descriptions = append(descriptions, fmt.Sprintf("%s: %s", info.Headline, info.Text))
-		}
+	// Add requirements section if available
+	if af.Description.Requirements != "" {
+		descriptions = append(descriptions, "Requirements: "+af.Description.Requirements)
+	}
+
+	// Add conditions section if available
+	if af.Description.Conditions != "" {
+		descriptions = append(descriptions, "Conditions: "+af.Description.Conditions)
 	}
 
 	return strings.Join(descriptions, "\n\n")
@@ -237,20 +341,74 @@ func (ac *ArbetsformedlingenConnector) mapExperienceLevel(required bool) string 
 	return "Entry-level"
 }
 
-// extractRequirements extracts job requirements
+// extractRequirements extracts job requirements including skills, languages, education
 func (ac *ArbetsformedlingenConnector) extractRequirements(af AFJob) []string {
 	requirements := []string{}
 
+	// Extract must-have skills
+	for _, skill := range af.MustHave.Skills {
+		if skill.Label != "" {
+			requirements = append(requirements, skill.Label)
+		}
+	}
+
+	// Extract nice-to-have skills
+	for _, skill := range af.NiceToHave.Skills {
+		if skill.Label != "" {
+			requirements = append(requirements, skill.Label)
+		}
+	}
+
+	// Extract must-have languages
+	for _, lang := range af.MustHave.Languages {
+		if lang.Label != "" {
+			requirements = append(requirements, lang.Label)
+		}
+	}
+
+	// Extract work experiences
+	for _, exp := range af.MustHave.WorkExperiences {
+		if exp.Label != "" {
+			requirements = append(requirements, exp.Label)
+		}
+	}
+
+	// Extract education requirements
+	for _, edu := range af.MustHave.Education {
+		if edu.Label != "" {
+			requirements = append(requirements, edu.Label)
+		}
+	}
+
+	// Extract education level
+	for _, level := range af.MustHave.EducationLevel {
+		if level.Label != "" {
+			requirements = append(requirements, level.Label)
+		}
+	}
+
+	// Add experience required flag
 	if af.ExperienceRequired {
 		requirements = append(requirements, "Work experience required")
 	}
 
-	// Look for requirements in application details
-	for _, info := range af.ApplicationDetails.Information {
-		if strings.Contains(strings.ToLower(info.Headline), "krav") ||
-			strings.Contains(strings.ToLower(info.Headline), "requirements") {
-			requirements = append(requirements, info.Text)
+	// Add driving license requirements
+	if af.DrivingLicenseRequired {
+		for _, license := range af.DrivingLicense {
+			if license.Label != "" {
+				requirements = append(requirements, license.Label)
+			}
 		}
+	}
+
+	// Fallback to occupation if no requirements specified
+	if len(requirements) == 0 && af.Occupation.Label != "" {
+		requirements = append(requirements, af.Occupation.Label)
+	}
+
+	// Add structured requirements from description
+	if af.Description.Requirements != "" {
+		requirements = append(requirements, af.Description.Requirements)
 	}
 
 	return requirements
@@ -260,12 +418,20 @@ func (ac *ArbetsformedlingenConnector) extractRequirements(af AFJob) []string {
 func (ac *ArbetsformedlingenConnector) extractBenefits(af AFJob) []string {
 	benefits := []string{}
 
-	// Look for benefits in application details
-	for _, info := range af.ApplicationDetails.Information {
-		if strings.Contains(strings.ToLower(info.Headline), "förmån") ||
-			strings.Contains(strings.ToLower(info.Headline), "benefit") {
-			benefits = append(benefits, info.Text)
-		}
+	// Add employment type as benefit if permanent
+	if strings.Contains(strings.ToLower(af.EmploymentType.Label), "tillsvidare") ||
+		strings.Contains(strings.ToLower(af.EmploymentType.Label), "permanent") {
+		benefits = append(benefits, "Permanent employment")
+	}
+
+	// Add duration info
+	if af.Duration.Label != "" {
+		benefits = append(benefits, af.Duration.Label)
+	}
+
+	// Add working hours type
+	if af.WorkingHoursType.Label != "" {
+		benefits = append(benefits, af.WorkingHoursType.Label)
 	}
 
 	return benefits
@@ -273,9 +439,11 @@ func (ac *ArbetsformedlingenConnector) extractBenefits(af AFJob) []string {
 
 // extractURL extracts the job URL
 func (ac *ArbetsformedlingenConnector) extractURL(af AFJob) string {
-	if len(af.SourceLinks) > 0 {
-		return af.SourceLinks[0].URL
+	// Use application URL if available
+	if af.ApplicationDetails.URL != "" {
+		return af.ApplicationDetails.URL
 	}
+	// Fallback to Arbetsförmedlingen page
 	return fmt.Sprintf("https://arbetsformedlingen.se/platsbanken/annonser/%s", af.ID)
 }
 
@@ -463,4 +631,21 @@ func (ac *ArbetsformedlingenConnector) SyncJobs() error {
 
 	fmt.Printf("🎉 Arbetsförmedlingen sync complete! Fetched: %d, Inserted: %d, Duplicates: %d\n", len(jobs), stored, duplicates)
 	return nil
+}
+
+// extractSkillLabels is a helper to extract labels from skill structs
+func (ac *ArbetsformedlingenConnector) extractSkillLabels(skills interface{}) []string {
+	labels := []string{}
+	
+	// Use reflection to handle different struct types
+	switch v := skills.(type) {
+	case []struct{ Label string `json:"label"` }:
+		for _, skill := range v {
+			if skill.Label != "" {
+				labels = append(labels, skill.Label)
+			}
+		}
+	}
+	
+	return labels
 }
