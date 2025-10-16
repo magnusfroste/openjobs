@@ -8,6 +8,8 @@ import (
 
 	"openjobs/connectors/arbetsformedlingen"
 	"openjobs/connectors/eures"
+	"openjobs/connectors/remoteok"
+	"openjobs/connectors/remotive"
 	"openjobs/pkg/models"
 	"openjobs/pkg/storage"
 )
@@ -25,9 +27,10 @@ func NewScheduler(store *storage.JobStore) *Scheduler {
 	registry := models.NewPluginRegistry()
 
 	// Register built-in connectors
-	// Note: RemoteOK now runs as standalone microservice
 	registry.Register(arbetsformedlingen.NewArbetsformedlingenConnector(store))
 	registry.Register(eures.NewEURESConnector(store))
+	registry.Register(remoteok.NewRemoteOKConnector(store))
+	registry.Register(remotive.NewRemotiveConnector(store))
 
 	return &Scheduler{
 		registry: registry,
@@ -91,27 +94,45 @@ func (s *Scheduler) RunManualSync() error {
 	fmt.Println("🔧 Running manual job sync for all connectors...")
 
 	// Check environment variables for external plugin URLs
-	afURL := os.Getenv("PLUGIN_ARBETSFORMEDLINGEN_URL")
-	euresURL := os.Getenv("PLUGIN_EURES_URL")
-
-	// Use HTTP connectors for external plugins
-	if afURL != "" {
-		connector := models.NewHTTPPluginConnector("arbetsformedlingen", "Arbetsförmedlingen HTTP Plugin", afURL)
-		err := connector.SyncJobs()
-		if err != nil {
-			log.Printf("❌ Arbetsförmedlingen HTTP sync failed: %v", err)
-		} else {
-			fmt.Println("✅ Arbetsförmedlingen HTTP sync completed")
-		}
+	pluginURLs := map[string]string{
+		"arbetsformedlingen": os.Getenv("PLUGIN_ARBETSFORMEDLINGEN_URL"),
+		"eures":              os.Getenv("PLUGIN_EURES_URL"),
+		"remotive":           os.Getenv("PLUGIN_REMOTIVE_URL"),
+		"remoteok":           os.Getenv("PLUGIN_REMOTEOK_URL"),
 	}
 
-	if euresURL != "" {
-		connector := models.NewHTTPPluginConnector("eures", "EURES HTTP Plugin", euresURL)
-		err := connector.SyncJobs()
-		if err != nil {
-			log.Printf("❌ EURES HTTP sync failed: %v", err)
-		} else {
-			fmt.Println("✅ EURES HTTP sync completed")
+	// Default URLs for Docker Compose setup
+	if pluginURLs["arbetsformedlingen"] == "" {
+		pluginURLs["arbetsformedlingen"] = "http://localhost:8081"
+	}
+	if pluginURLs["eures"] == "" {
+		pluginURLs["eures"] = "http://localhost:8082"
+	}
+	if pluginURLs["remotive"] == "" {
+		pluginURLs["remotive"] = "http://localhost:8083"
+	}
+	if pluginURLs["remoteok"] == "" {
+		pluginURLs["remoteok"] = "http://localhost:8084"
+	}
+
+	// Sync all HTTP plugins
+	pluginNames := map[string]string{
+		"arbetsformedlingen": "Arbetsförmedlingen",
+		"eures":              "EURES",
+		"remotive":           "Remotive",
+		"remoteok":           "RemoteOK",
+	}
+
+	for id, url := range pluginURLs {
+		if url != "" {
+			name := pluginNames[id]
+			connector := models.NewHTTPPluginConnector(id, name+" HTTP Plugin", url)
+			err := connector.SyncJobs()
+			if err != nil {
+				log.Printf("❌ %s HTTP sync failed: %v", name, err)
+			} else {
+				fmt.Printf("✅ %s HTTP sync completed\n", name)
+			}
 		}
 	}
 
