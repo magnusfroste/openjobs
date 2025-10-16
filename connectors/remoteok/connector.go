@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"openjobs/pkg/models"
@@ -123,7 +124,7 @@ func (rc *RemoteOKConnector) transformRemoteOKJob(rj RemoteOKJob) models.JobPost
 		ExperienceLevel: "Mid-level", // Most remote jobs are for experienced developers
 		PostedDate:      rc.parseRemoteOKDate(rj.Date),
 		ExpiresDate:     rc.parseRemoteOKDate(rj.Date).AddDate(0, 2, 0), // 2 month expiration
-		Requirements:    rj.Tags, // Tags as requirements/skills
+		Requirements:    rc.extractRequirements(rj), // Tags + keyword extraction
 		Benefits:        []string{"Remote work"},
 		Fields: map[string]interface{}{
 			"source":       "remoteok",
@@ -225,4 +226,39 @@ func (rc *RemoteOKConnector) SyncJobs() error {
 
 	fmt.Printf("🎉 RemoteOK sync complete! Stored %d new remote jobs\n", stored)
 	return nil
+}
+
+// extractRequirements extracts keywords from tags, title, and description
+func (rc *RemoteOKConnector) extractRequirements(rj RemoteOKJob) []string {
+requirements := []string{}
+seen := make(map[string]bool)
+
+// Add tags first (most reliable)
+for _, tag := range rj.Tags {
+if tag != "" && !seen[tag] {
+requirements = append(requirements, tag)
+seen[tag] = true
+}
+}
+
+// Extract from title and description
+text := strings.ToLower(rj.Position + " " + rj.Description)
+
+// Common tech skills
+keywords := []string{
+"Java", "Python", "JavaScript", "TypeScript", "C++", "C#", ".NET", "PHP", "Ruby", "Go", "Rust", "Swift", "Kotlin",
+"React", "Angular", "Vue", "Node.js", "Spring", "Django", "Flask", "Express", "Laravel",
+"Docker", "Kubernetes", "AWS", "Azure", "GCP", "CI/CD", "Jenkins", "Git", "Linux",
+"SQL", "PostgreSQL", "MySQL", "MongoDB", "Redis", "Elasticsearch",
+"API", "REST", "GraphQL", "Microservices", "Agile", "Scrum",
+}
+
+for _, keyword := range keywords {
+if strings.Contains(text, strings.ToLower(keyword)) && !seen[keyword] {
+requirements = append(requirements, keyword)
+seen[keyword] = true
+}
+}
+
+return requirements
 }
