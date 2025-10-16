@@ -1,0 +1,118 @@
+# Docker Compose for OpenJobs Standalone Plugins
+# All connectors run as independent microservices
+
+version: '3.8'
+
+services:
+  # Main OpenJobs API (without integrated connectors)
+  openjobs:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: openjobs-api
+    ports:
+      - "8080:8080"
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_KEY=${SUPABASE_KEY}
+    restart: unless-stopped
+    networks:
+      - openjobs-network
+
+  # Arbetsförmedlingen Plugin (Swedish jobs)
+  plugin-arbetsformedlingen:
+    build:
+      context: .
+      dockerfile: connectors/arbetsformedlingen/Dockerfile
+    container_name: openjobs-plugin-arbetsformedlingen
+    ports:
+      - "8081:8081"
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - PORT=8081
+    restart: unless-stopped
+    depends_on:
+      - openjobs
+    networks:
+      - openjobs-network
+
+  # EURES Plugin (European jobs)
+  plugin-eures:
+    build:
+      context: .
+      dockerfile: connectors/eures/Dockerfile
+    container_name: openjobs-plugin-eures
+    ports:
+      - "8082:8082"
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - ADZUNA_API_ID=${ADZUNA_API_ID}
+      - ADZUNA_API_KEY=${ADZUNA_API_KEY}
+      - PORT=8082
+    restart: unless-stopped
+    depends_on:
+      - openjobs
+    networks:
+      - openjobs-network
+
+  # Remotive Plugin (Remote jobs)
+  plugin-remotive:
+    build:
+      context: .
+      dockerfile: connectors/remotive/Dockerfile
+    container_name: openjobs-plugin-remotive
+    ports:
+      - "8083:8083"
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - PORT=8083
+    restart: unless-stopped
+    depends_on:
+      - openjobs
+    networks:
+      - openjobs-network
+
+  # RemoteOK Plugin (Remote tech jobs)
+  plugin-remoteok:
+    build:
+      context: .
+      dockerfile: connectors/remoteok/Dockerfile
+    container_name: openjobs-plugin-remoteok
+    ports:
+      - "8084:8084"
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - PORT=8084
+    restart: unless-stopped
+    depends_on:
+      - openjobs
+    networks:
+      - openjobs-network
+
+networks:
+  openjobs-network:
+    driver: bridge
+
+# Usage:
+# 1. Copy .env.example to .env and fill in your credentials
+# 2. Start all services: docker-compose -f docker-compose.plugins.yml up -d
+# 3. View logs: docker-compose -f docker-compose.plugins.yml logs -f
+# 4. Stop all: docker-compose -f docker-compose.plugins.yml down
+#
+# Individual plugin control:
+# - Start one: docker-compose -f docker-compose.plugins.yml up -d plugin-remoteok
+# - Stop one: docker-compose -f docker-compose.plugins.yml stop plugin-remoteok
+# - Restart one: docker-compose -f docker-compose.plugins.yml restart plugin-remoteok
+#
+# Trigger sync manually:
+# - curl -X POST http://localhost:8081/sync  # Arbetsförmedlingen
+# - curl -X POST http://localhost:8082/sync  # EURES
+# - curl -X POST http://localhost:8083/sync  # Remotive
+# - curl -X POST http://localhost:8084/sync  # RemoteOK
+#
+# Check health:
+# - curl http://localhost:8081/health
+# - curl http://localhost:8082/health
+# - curl http://localhost:8083/health
+# - curl http://localhost:8084/health

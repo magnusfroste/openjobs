@@ -41,7 +41,32 @@ RemoteOK → OpenJobs mapping:
 
 ## Usage
 
-The connector is automatically registered in the scheduler. No configuration needed!
+### Standalone Microservice (Default)
+RemoteOK runs as an independent microservice on port 8084.
+
+**Build and run:**
+```bash
+# Build
+docker build -f connectors/remoteok/Dockerfile -t plugin-remoteok .
+
+# Run
+docker run -p 8084:8084 -e DATABASE_URL=$DATABASE_URL plugin-remoteok
+```
+
+**Or use docker-compose:**
+```bash
+docker-compose -f docker-compose.plugins.yml up -d plugin-remoteok
+```
+
+**API Endpoints:**
+- `GET /health` - Health check
+- `POST /sync` - Trigger job sync
+- `GET /jobs` - Fetch latest jobs (without storing)
+
+**Trigger sync:**
+```bash
+curl -X POST http://localhost:8084/sync
+```
 
 ## Example Job
 

@@ -8,7 +8,6 @@ import (
 
 	"openjobs/connectors/arbetsformedlingen"
 	"openjobs/connectors/eures"
-	"openjobs/connectors/remoteok"
 	"openjobs/pkg/models"
 	"openjobs/pkg/storage"
 )
@@ -26,9 +25,9 @@ func NewScheduler(store *storage.JobStore) *Scheduler {
 	registry := models.NewPluginRegistry()
 
 	// Register built-in connectors
+	// Note: RemoteOK now runs as standalone microservice
 	registry.Register(arbetsformedlingen.NewArbetsformedlingenConnector(store))
 	registry.Register(eures.NewEURESConnector(store))
-	registry.Register(remoteok.NewRemoteOKConnector(store))
 
 	return &Scheduler{
 		registry: registry,
