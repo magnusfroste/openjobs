@@ -341,58 +341,83 @@ func (ac *ArbetsformedlingenConnector) mapExperienceLevel(required bool) string 
 	return "Entry-level"
 }
 
-// extractRequirements extracts job requirements including skills, languages, education
+// extractRequirements extracts ALL job requirements for matching
+// This is the SOURCE OF TRUTH - all consuming apps use this array directly
+// Strategy: Extract everything that can be matched against CV skills
 func (ac *ArbetsformedlingenConnector) extractRequirements(af AFJob) []string {
 	requirements := []string{}
 
-	// Extract must-have skills
+	// 1. TECHNICAL SKILLS (must-have)
 	for _, skill := range af.MustHave.Skills {
 		if skill.Label != "" {
 			requirements = append(requirements, skill.Label)
 		}
 	}
 
-	// Extract nice-to-have skills
+	// 2. TECHNICAL SKILLS (nice-to-have)
 	for _, skill := range af.NiceToHave.Skills {
 		if skill.Label != "" {
 			requirements = append(requirements, skill.Label)
 		}
 	}
 
-	// Extract must-have languages
+	// 3. LANGUAGES (must-have) - Critical for matching!
 	for _, lang := range af.MustHave.Languages {
 		if lang.Label != "" {
 			requirements = append(requirements, lang.Label)
 		}
 	}
 
-	// Extract work experiences
+	// 4. LANGUAGES (nice-to-have)
+	for _, lang := range af.NiceToHave.Languages {
+		if lang.Label != "" {
+			requirements = append(requirements, lang.Label)
+		}
+	}
+
+	// 5. WORK EXPERIENCES (must-have)
 	for _, exp := range af.MustHave.WorkExperiences {
 		if exp.Label != "" {
 			requirements = append(requirements, exp.Label)
 		}
 	}
 
-	// Extract education requirements
+	// 6. WORK EXPERIENCES (nice-to-have)
+	for _, exp := range af.NiceToHave.WorkExperiences {
+		if exp.Label != "" {
+			requirements = append(requirements, exp.Label)
+		}
+	}
+
+	// 7. EDUCATION (must-have)
 	for _, edu := range af.MustHave.Education {
 		if edu.Label != "" {
 			requirements = append(requirements, edu.Label)
 		}
 	}
 
-	// Extract education level
+	// 8. EDUCATION LEVEL (must-have)
 	for _, level := range af.MustHave.EducationLevel {
 		if level.Label != "" {
 			requirements = append(requirements, level.Label)
 		}
 	}
 
-	// Add experience required flag
-	if af.ExperienceRequired {
-		requirements = append(requirements, "Work experience required")
+	// 9. EDUCATION (nice-to-have)
+	for _, edu := range af.NiceToHave.Education {
+		if edu.Label != "" {
+			requirements = append(requirements, edu.Label)
+		}
 	}
 
-	// Add driving license requirements
+	// 10. EDUCATION LEVEL (nice-to-have)
+	for _, level := range af.NiceToHave.EducationLevel {
+		if level.Label != "" {
+			requirements = append(requirements, level.Label)
+		}
+	}
+
+	// 11. DRIVING LICENSE (if required)
 	if af.DrivingLicenseRequired {
 		for _, license := range af.DrivingLicense {
 			if license.Label != "" {
@@ -401,12 +426,22 @@ func (ac *ArbetsformedlingenConnector) extractRequirements(af AFJob) []string {
 		}
 	}
 
-	// Fallback to occupation if no requirements specified
-	if len(requirements) == 0 && af.Occupation.Label != "" {
+	// 12. OCCUPATION (always add for categorization)
+	if af.Occupation.Label != "" {
 		requirements = append(requirements, af.Occupation.Label)
 	}
 
-	// Add structured requirements from description
+	// 13. OCCUPATION GROUP (for broader matching)
+	if af.OccupationGroup.Label != "" {
+		requirements = append(requirements, af.OccupationGroup.Label)
+	}
+
+	// 14. EXPERIENCE FLAG
+	if af.ExperienceRequired {
+		requirements = append(requirements, "Work experience required")
+	}
+
+	// 15. STRUCTURED REQUIREMENTS from description
 	if af.Description.Requirements != "" {
 		requirements = append(requirements, af.Description.Requirements)
 	}
