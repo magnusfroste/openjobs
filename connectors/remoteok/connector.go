@@ -1,0 +1,220 @@
+package remoteok
+
+import (
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"time"
+
+	"openjobs/pkg/models"
+	"openjobs/pkg/storage"
+)
+
+// RemoteOKConnector implements connector for RemoteOK.com
+type RemoteOKConnector struct {
+	store     *storage.JobStore
+	baseURL   string
+	userAgent string
+}
+
+// RemoteOKJob represents a job from the RemoteOK API
+type RemoteOKJob struct {
+	ID          string   `json:"id"`
+	Slug        string   `json:"slug"`
+	Position    string   `json:"position"`
+	Company     string   `json:"company"`
+	CompanyLogo string   `json:"company_logo"`
+	Location    string   `json:"location"`
+	Description string   `json:"description"`
+	Tags        []string `json:"tags"`
+	Date        string   `json:"date"`
+	URL         string   `json:"url"`
+	ApplyURL    string   `json:"apply_url"`
+}
+
+// NewRemoteOKConnector creates a new connector
+func NewRemoteOKConnector(store *storage.JobStore) *RemoteOKConnector {
+	return &RemoteOKConnector{
+		store:     store,
+		baseURL:   "https://remoteok.com/api",
+		userAgent: "OpenJobs-RemoteOK-Connector/1.0",
+	}
+}
+
+// GetID returns the connector ID
+func (rc *RemoteOKConnector) GetID() string {
+	return "remoteok"
+}
+
+// GetName returns the connector name
+func (rc *RemoteOKConnector) GetName() string {
+	return "RemoteOK Connector"
+}
+
+// FetchJobs fetches job listings from RemoteOK API
+func (rc *RemoteOKConnector) FetchJobs() ([]models.JobPost, error) {
+	url := rc.baseURL
+
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("User-Agent", rc.userAgent)
+	req.Header.Set("Accept", "application/json")
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch jobs from RemoteOK: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("remoteOK API error %d: %s", resp.StatusCode, string(body))
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response: %w", err)
+	}
+
+	var remoteOKJobs []RemoteOKJob
+	err = json.Unmarshal(body, &remoteOKJobs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse response: %w", err)
+	}
+
+	// First item is metadata, skip it
+	if len(remoteOKJobs) > 0 {
+		remoteOKJobs = remoteOKJobs[1:]
+	}
+
+	// Transform to our JobPost format
+	jobs := make([]models.JobPost, 0, len(remoteOKJobs))
+	for _, remoteOKJob := range remoteOKJobs {
+		job := rc.transformRemoteOKJob(remoteOKJob)
+		jobs = append(jobs, job)
+	}
+
+	return jobs, nil
+}
+
+// transformRemoteOKJob converts RemoteOK job format to our JobPost format
+func (rc *RemoteOKConnector) transformRemoteOKJob(rj RemoteOKJob) models.JobPost {
+	job := models.JobPost{
+		ID:              fmt.Sprintf("remoteok-%s", rj.ID),
+		Title:           rj.Position,
+		Company:         rj.Company,
+		Description:     rc.extractDescription(rj),
+		Location:        rc.formatLocation(rj),
+		Salary:          "", // RemoteOK doesn't provide salary
+		EmploymentType:  "Full-time",
+		ExperienceLevel: "Mid-level", // Most remote jobs are for experienced developers
+		PostedDate:      rc.parseRemoteOKDate(rj.Date),
+		ExpiresDate:     rc.parseRemoteOKDate(rj.Date).AddDate(0, 2, 0), // 2 month expiration
+		Requirements:    rj.Tags, // Tags as requirements/skills
+		Benefits:        []string{"Remote work"},
+		Fields: map[string]interface{}{
+			"source":       "remoteok",
+			"source_url":   rc.extractURL(rj),
+			"original_id":  rj.ID,
+			"slug":         rj.Slug,
+			"tags":         rj.Tags,
+			"company_logo": rj.CompanyLogo,
+			"apply_url":    rj.ApplyURL,
+			"connector":    "remoteok",
+			"fetched_at":   time.Now(),
+		},
+	}
+
+	return job
+}
+
+// extractDescription uses the description or creates a simple one
+func (rc *RemoteOKConnector) extractDescription(rj RemoteOKJob) string {
+	if rj.Description != "" {
+		return rj.Description
+	}
+	return fmt.Sprintf("Remote %s position at %s", rj.Position, rj.Company)
+}
+
+// formatLocation handles remote location
+func (rc *RemoteOKConnector) formatLocation(rj RemoteOKJob) string {
+	if rj.Location != "" && rj.Location != "Remote" {
+		return rj.Location + " (Remote)"
+	}
+	return "Remote"
+}
+
+// extractURL gets the job URL
+func (rc *RemoteOKConnector) extractURL(rj RemoteOKJob) string {
+	if rj.URL != "" {
+		return rj.URL
+	}
+	if rj.Slug != "" {
+		return fmt.Sprintf("https://remoteok.com/remote-jobs/%s", rj.Slug)
+	}
+	return fmt.Sprintf("https://remoteok.com/remote-jobs/%s", rj.ID)
+}
+
+// parseRemoteOKDate parses RemoteOK date string (Unix timestamp or ISO format)
+func (rc *RemoteOKConnector) parseRemoteOKDate(dateStr string) time.Time {
+	if dateStr == "" {
+		return time.Now()
+	}
+
+	// Try parsing as RFC3339
+	if t, err := time.Parse(time.RFC3339, dateStr); err == nil {
+		return t
+	}
+
+	// Try parsing as YYYY-MM-DD
+	if t, err := time.Parse("2006-01-02", dateStr); err == nil {
+		return t
+	}
+
+	return time.Now()
+}
+
+// SyncJobs fetches jobs from RemoteOK and stores them
+func (rc *RemoteOKConnector) SyncJobs() error {
+	fmt.Println("🔄 Starting RemoteOK remote jobs sync...")
+
+	jobs, err := rc.FetchJobs()
+	if err != nil {
+		return fmt.Errorf("failed to fetch jobs from RemoteOK: %w", err)
+	}
+
+	fmt.Printf("📥 Fetched %d remote jobs from RemoteOK\n", len(jobs))
+
+	stored := 0
+	for _, job := range jobs {
+		// Check if job already exists
+		existing, err := rc.store.GetJob(job.ID)
+		if err != nil && err.Error() != "sql: no rows in result set" {
+			fmt.Printf("⚠️  Error checking existing job %s: %v\n", job.ID, err)
+			continue
+		}
+
+		if existing != nil {
+			// Job already exists, skip
+			continue
+		}
+
+		// Store new job
+		err = rc.store.CreateJob(&job)
+		if err != nil {
+			fmt.Printf("❌ Error storing job %s: %v\n", job.ID, err)
+			continue
+		}
+
+		stored++
+		fmt.Printf("✅ Stored remote job: %s at %s\n", job.Title, job.Company)
+	}
+
+	fmt.Printf("🎉 RemoteOK sync complete! Stored %d new remote jobs\n", stored)
+	return nil
+}

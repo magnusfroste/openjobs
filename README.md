@@ -116,6 +116,8 @@ type PluginConnector interface {
 Connectors are registered at startup and called dynamically - **zero coupling** between core and plugins:
 - **Arbetsförmedlingen Connector**: Swedish public employment service (government open data)
 - **EURES Connector**: European Commission job mobility portal (pan-European)
+- **Remotive Connector**: Remote-first job platform
+- **RemoteOK Connector**: Large remote tech job board (99+ jobs)
 - **Custom Connectors**: Extend by implementing `PluginConnector` interface
 
 **Adding New Connectors:**
