@@ -240,6 +240,16 @@ func main() {
 		}
 	})
 
+	// Root redirect to dashboard
+	fmt.Println("📝 Registering route: / (redirect to /dashboard)")
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/" {
+			http.Redirect(w, r, "/dashboard", http.StatusFound)
+			return
+		}
+		http.NotFound(w, r)
+	})
+
 	// Dashboard route (use this one)
 	fmt.Println("📝 Registering route: /dashboard")
 	http.HandleFunc("/dashboard", server.DashboardHandler)
