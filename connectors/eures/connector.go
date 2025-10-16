@@ -231,6 +231,7 @@ func (ec *EURESConnector) transformAdzunaJob(aj AdzunaJob) models.JobPost {
 		ExperienceLevel: "Mid-level", // Adzuna doesn't provide experience level
 		PostedDate:      ec.parseAdzunaDate(aj.Created),
 		ExpiresDate:     ec.parseAdzunaDate(aj.Created).AddDate(0, 1, 0), // Default 1 month expiry
+		Requirements:    ec.extractRequirementsFromText(aj.Title, aj.Description), // Extract from text
 		Fields: map[string]interface{}{
 			"source":        "adzuna",
 			"source_url":    aj.RedirectURL,
@@ -375,4 +376,61 @@ func (ec *EURESConnector) SyncJobs() error {
 
 	fmt.Printf("🎉 EURES sync complete! Fetched: %d, Inserted: %d, Duplicates: %d\n", len(jobs), stored, duplicates)
 	return nil
+}
+
+// extractRequirementsFromText extracts basic keywords from title and description
+// This is a simple keyword-based extraction for APIs that don't provide structured requirements
+func (ec *EURESConnector) extractRequirementsFromText(title, description string) []string {
+	requirements := []string{}
+	seen := make(map[string]bool)
+	
+	// Combine title and description for searching
+	text := strings.ToLower(title + " " + description)
+	
+	// Common tech skills and keywords
+	keywords := []string{
+		// Programming languages
+		"Java", "Python", "JavaScript", "TypeScript", "C++", "C#", ".NET", "PHP", "Ruby", "Go", "Rust", "Swift", "Kotlin",
+		// Frameworks & Libraries
+		"React", "Angular", "Vue", "Node.js", "Spring", "Django", "Flask", "Express", "Laravel",
+		// DevOps & Cloud
+		"Docker", "Kubernetes", "AWS", "Azure", "GCP", "CI/CD", "Jenkins", "Git", "Linux",
+		// Databases
+		"SQL", "PostgreSQL", "MySQL", "MongoDB", "Redis", "Elasticsearch",
+		// Other skills
+		"API", "REST", "GraphQL", "Microservices", "Agile", "Scrum",
+	}
+	
+	// Extract keywords found in text
+	for _, keyword := range keywords {
+		if strings.Contains(text, strings.ToLower(keyword)) {
+			if !seen[keyword] {
+				requirements = append(requirements, keyword)
+				seen[keyword] = true
+			}
+		}
+	}
+	
+	// Extract experience level from description
+	if strings.Contains(text, "senior") || strings.Contains(text, "lead") {
+		if !seen["Senior level"] {
+			requirements = append(requirements, "Senior level")
+			seen["Senior level"] = true
+		}
+	} else if strings.Contains(text, "junior") || strings.Contains(text, "entry") {
+		if !seen["Junior level"] {
+			requirements = append(requirements, "Junior level")
+			seen["Junior level"] = true
+		}
+	}
+	
+	// Extract years of experience
+	if strings.Contains(text, "years experience") || strings.Contains(text, "years of experience") {
+		if !seen["Experience required"] {
+			requirements = append(requirements, "Experience required")
+			seen["Experience required"] = true
+		}
+	}
+	
+	return requirements
 }
