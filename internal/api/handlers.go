@@ -39,12 +39,37 @@ func (s *Server) DashboardHandler(w http.ResponseWriter, r *http.Request) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>OpenJobs Dashboard</title>
     <style>
+        :root {
+            --bg-gradient-start: #667eea;
+            --bg-gradient-end: #764ba2;
+            --card-bg: white;
+            --text-primary: #2c3e50;
+            --text-secondary: #7f8c8d;
+            --border-color: #e1e8ed;
+            --table-header-bg: #f8f9fa;
+            --table-hover-bg: #f8f9fa;
+            --shadow: rgba(0, 0, 0, 0.1);
+        }
+        
+        [data-theme="dark"] {
+            --bg-gradient-start: #1a1a2e;
+            --bg-gradient-end: #16213e;
+            --card-bg: #0f3460;
+            --text-primary: #e8e8e8;
+            --text-secondary: #a8a8a8;
+            --border-color: #1a4d6d;
+            --table-header-bg: #16213e;
+            --table-hover-bg: #1a4d6d;
+            --shadow: rgba(0, 0, 0, 0.3);
+        }
+        
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
-            background: #f5f7fa;
-            color: #2c3e50;
-            line-height: 1.6;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, var(--bg-gradient-start) 0%, var(--bg-gradient-end) 100%);
+            min-height: 100vh;
+            padding: 2rem;
+            transition: background 0.3s ease;
         }
         .container {
             max-width: 1400px;
@@ -52,7 +77,7 @@ func (s *Server) DashboardHandler(w http.ResponseWriter, r *http.Request) {
             padding: 2rem;
         }
         .header {
-            background: white;
+            background: var(--card-bg);
             padding: 2rem;
             border-radius: 12px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.08);
