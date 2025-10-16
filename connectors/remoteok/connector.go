@@ -104,6 +104,9 @@ func (rc *RemoteOKConnector) FetchJobs() ([]models.JobPost, error) {
 
 // transformRemoteOKJob converts RemoteOK job format to our JobPost format
 func (rc *RemoteOKConnector) transformRemoteOKJob(rj RemoteOKJob) models.JobPost {
+	// Extract URL
+	url := rc.extractURL(rj)
+	
 	job := models.JobPost{
 		ID:              fmt.Sprintf("remoteok-%s", rj.ID),
 		Title:           rj.Position,
@@ -111,6 +114,11 @@ func (rc *RemoteOKConnector) transformRemoteOKJob(rj RemoteOKJob) models.JobPost
 		Description:     rc.extractDescription(rj),
 		Location:        rc.formatLocation(rj),
 		Salary:          "", // RemoteOK doesn't provide salary
+		SalaryMin:       nil,
+		SalaryMax:       nil,
+		SalaryCurrency:  "USD",
+		IsRemote:        true, // ⭐ All RemoteOK jobs are remote
+		URL:             url,  // ⭐ Direct application URL
 		EmploymentType:  "Full-time",
 		ExperienceLevel: "Mid-level", // Most remote jobs are for experienced developers
 		PostedDate:      rc.parseRemoteOKDate(rj.Date),
@@ -119,7 +127,7 @@ func (rc *RemoteOKConnector) transformRemoteOKJob(rj RemoteOKJob) models.JobPost
 		Benefits:        []string{"Remote work"},
 		Fields: map[string]interface{}{
 			"source":       "remoteok",
-			"source_url":   rc.extractURL(rj),
+			"source_url":   url,
 			"original_id":  rj.ID,
 			"slug":         rj.Slug,
 			"tags":         rj.Tags,

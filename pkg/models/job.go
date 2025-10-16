@@ -14,6 +14,11 @@ type JobPost struct {
 	Description     string                 `json:"description" db:"description"`
 	Location        string                 `json:"location" db:"location"`
 	Salary          string                 `json:"salary" db:"salary"`
+	SalaryMin       *int                   `json:"salary_min,omitempty" db:"salary_min"`
+	SalaryMax       *int                   `json:"salary_max,omitempty" db:"salary_max"`
+	SalaryCurrency  string                 `json:"salary_currency,omitempty" db:"salary_currency"`
+	IsRemote        bool                   `json:"is_remote" db:"is_remote"`
+	URL             string                 `json:"url,omitempty" db:"url"`
 	EmploymentType  string                 `json:"employment_type" db:"employment_type"`
 	ExperienceLevel string                 `json:"experience_level" db:"experience_level"`
 	PostedDate      time.Time              `json:"posted_date" db:"posted_date"`

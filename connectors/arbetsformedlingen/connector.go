@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -138,6 +139,15 @@ func (ac *ArbetsformedlingenConnector) FetchJobs() ([]models.JobPost, error) {
 
 // transformAFJob converts Arbetsförmedlingen job format to our JobPost format
 func (ac *ArbetsformedlingenConnector) transformAFJob(af AFJob) models.JobPost {
+	// Parse salary
+	salaryMin, salaryMax, currency := ac.parseSalary(af.SalaryDescription)
+	
+	// Detect remote work
+	isRemote := ac.detectRemote(af)
+	
+	// Extract URL
+	url := ac.extractURL(af)
+	
 	job := models.JobPost{
 		ID:              fmt.Sprintf("af-%s", af.ID),
 		Title:           af.Headline,
@@ -145,6 +155,11 @@ func (ac *ArbetsformedlingenConnector) transformAFJob(af AFJob) models.JobPost {
 		Description:     ac.extractDescription(af),
 		Location:        ac.formatLocation(af),
 		Salary:          af.SalaryDescription,
+		SalaryMin:       salaryMin,
+		SalaryMax:       salaryMax,
+		SalaryCurrency:  currency,
+		IsRemote:        isRemote,
+		URL:             url,
 		EmploymentType:  ac.mapEmploymentType(af.EmploymentType.ConceptLabel),
 		ExperienceLevel: ac.mapExperienceLevel(af.ExperienceRequired),
 		PostedDate:      ac.parseAFDate(af.PublicationDate),
@@ -153,7 +168,7 @@ func (ac *ArbetsformedlingenConnector) transformAFJob(af AFJob) models.JobPost {
 		Benefits:        ac.extractBenefits(af),
 		Fields: map[string]interface{}{
 			"source":       "arbetsformedlingen",
-			"source_url":   ac.extractURL(af),
+			"source_url":   url,
 			"original_id":  af.ID,
 			"country":      af.WorkplaceAddress.Country,
 			"region":       af.WorkplaceAddress.Region,
@@ -262,6 +277,103 @@ func (ac *ArbetsformedlingenConnector) extractURL(af AFJob) string {
 		return af.SourceLinks[0].URL
 	}
 	return fmt.Sprintf("https://arbetsformedlingen.se/platsbanken/annonser/%s", af.ID)
+}
+
+// parseSalary parses salary string to extract min, max, and currency
+func (ac *ArbetsformedlingenConnector) parseSalary(salaryStr string) (*int, *int, string) {
+	if salaryStr == "" {
+		return nil, nil, "SEK"
+	}
+
+	// Common patterns in Swedish job postings:
+	// "45000 - 65000 SEK/månad"
+	// "SEK 45,000 - 65,000"
+	// "45 000 - 65 000 kr/mån"
+	// "Enligt överenskommelse" (by agreement)
+
+	// Check if it's "by agreement" or similar
+	lower := strings.ToLower(salaryStr)
+	if strings.Contains(lower, "överenskommelse") || 
+	   strings.Contains(lower, "agreement") ||
+	   strings.Contains(lower, "enligt ök") {
+		return nil, nil, "SEK"
+	}
+
+	// Remove common Swedish/English words
+	cleanStr := strings.ReplaceAll(salaryStr, "kr", "")
+	cleanStr = strings.ReplaceAll(cleanStr, "SEK", "")
+	cleanStr = strings.ReplaceAll(cleanStr, "månad", "")
+	cleanStr = strings.ReplaceAll(cleanStr, "mån", "")
+	cleanStr = strings.ReplaceAll(cleanStr, "month", "")
+	cleanStr = strings.ReplaceAll(cleanStr, "/", "")
+	cleanStr = strings.ReplaceAll(cleanStr, ",", "")
+	cleanStr = strings.ReplaceAll(cleanStr, " ", "")
+
+	// Try to find two numbers separated by dash or "till"
+	var min, max int
+	var currency string = "SEK"
+
+	// Pattern: "45000-65000" or "45000till65000"
+	if strings.Contains(cleanStr, "-") {
+		parts := strings.Split(cleanStr, "-")
+		if len(parts) == 2 {
+			if m, err := strconv.Atoi(strings.TrimSpace(parts[0])); err == nil {
+				min = m
+			}
+			if m, err := strconv.Atoi(strings.TrimSpace(parts[1])); err == nil {
+				max = m
+			}
+		}
+	} else if strings.Contains(strings.ToLower(cleanStr), "till") {
+		parts := strings.Split(strings.ToLower(cleanStr), "till")
+		if len(parts) == 2 {
+			if m, err := strconv.Atoi(strings.TrimSpace(parts[0])); err == nil {
+				min = m
+			}
+			if m, err := strconv.Atoi(strings.TrimSpace(parts[1])); err == nil {
+				max = m
+			}
+		}
+	} else {
+		// Single number - use as both min and max
+		if m, err := strconv.Atoi(cleanStr); err == nil {
+			min = m
+			max = m
+		}
+	}
+
+	if min > 0 && max > 0 {
+		return &min, &max, currency
+	} else if min > 0 {
+		return &min, nil, currency
+	}
+
+	return nil, nil, currency
+}
+
+// detectRemote checks if the job allows remote work
+func (ac *ArbetsformedlingenConnector) detectRemote(af AFJob) bool {
+	// Check location
+	location := strings.ToLower(ac.formatLocation(af))
+	description := strings.ToLower(af.Description.Text)
+	headline := strings.ToLower(af.Headline)
+
+	// Swedish and English keywords for remote work
+	remoteKeywords := []string{
+		"distans", "remote", "hemarbete", "hemifrån",
+		"fjärr", "work from home", "wfh",
+		"anywhere", "var som helst",
+	}
+
+	for _, keyword := range remoteKeywords {
+		if strings.Contains(location, keyword) ||
+		   strings.Contains(description, keyword) ||
+		   strings.Contains(headline, keyword) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // parseAFDate parses Arbetsförmedlingen date string
