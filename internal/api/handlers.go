@@ -299,26 +299,47 @@ func (s *Server) DashboardHandler(w http.ResponseWriter, r *http.Request) {
                 document.getElementById('remote').textContent = '96';
                 document.getElementById('last-sync').textContent = new Date().toLocaleTimeString();
 
-                // Update plugin status
-                const plugins = [
-                    { name: 'Arbetsförmedlingen', port: 8081, jobs: '20', status: 'healthy' },
-                    { name: 'EURES', port: 8082, jobs: '15', status: 'healthy' },
-                    { name: 'Remotive', port: 8083, jobs: '13', status: 'healthy' },
-                    { name: 'RemoteOK', port: 8084, jobs: '96', status: 'healthy' }
-                ];
+                // Fetch and update plugin status from API
+                const pluginRes = await fetch('/plugins/status');
+                const pluginData = await pluginRes.json();
 
                 let pluginHtml = '';
-                for (const plugin of plugins) {
-                    pluginHtml += '<div class="plugin-card">' +
-                        '<div class="plugin-header">' +
-                        '<div class="plugin-name">' + plugin.name + '</div>' +
-                        '<span class="status-badge status-' + plugin.status + '">&bull; ' + plugin.status + '</span>' +
-                        '</div>' +
-                        '<div class="plugin-stats">' +
-                        '<div>Port: ' + plugin.port + '</div>' +
-                        '<div>Jobs: ' + plugin.jobs + '</div>' +
-                        '</div>' +
-                        '</div>';
+                if (pluginData.success && pluginData.data) {
+                    const activePlugins = pluginData.data.filter(p => p.status === 'healthy').length;
+                    document.getElementById('plugins').textContent = activePlugins;
+
+                    for (const plugin of pluginData.data) {
+                        pluginHtml += '<div class="plugin-card">' +
+                            '<div class="plugin-header">' +
+                            '<div class="plugin-name">' + plugin.name + '</div>' +
+                            '<span class="status-badge status-' + plugin.status + '">&bull; ' + plugin.status + '</span>' +
+                            '</div>' +
+                            '<div class="plugin-stats">' +
+                            '<div>Port: ' + plugin.port + '</div>' +
+                            '<div>Jobs: ' + plugin.jobs + '</div>' +
+                            '</div>' +
+                            '</div>';
+                    }
+                } else {
+                    // Fallback to hardcoded data
+                    const plugins = [
+                        { name: 'Arbetsförmedlingen', port: 8081, jobs: 0, status: 'unknown' },
+                        { name: 'EURES', port: 8082, jobs: 0, status: 'unknown' },
+                        { name: 'Remotive', port: 8083, jobs: 0, status: 'unknown' },
+                        { name: 'RemoteOK', port: 8084, jobs: 0, status: 'unknown' }
+                    ];
+                    for (const plugin of plugins) {
+                        pluginHtml += '<div class="plugin-card">' +
+                            '<div class="plugin-header">' +
+                            '<div class="plugin-name">' + plugin.name + '</div>' +
+                            '<span class="status-badge status-' + plugin.status + '">&bull; ' + plugin.status + '</span>' +
+                            '</div>' +
+                            '<div class="plugin-stats">' +
+                            '<div>Port: ' + plugin.port + '</div>' +
+                            '<div>Jobs: ' + plugin.jobs + '</div>' +
+                            '</div>' +
+                            '</div>';
+                    }
                 }
                 document.getElementById('plugin-status').innerHTML = pluginHtml;
 
@@ -725,6 +746,65 @@ func (s *Server) SyncLogsHandler(w http.ResponseWriter, r *http.Request) {
 	response := models.APIResponse{
 		Success: true,
 		Data:    logs,
+	}
+
+	json.NewEncoder(w).Encode(response)
+}
+
+// PluginStatusHandler handles GET /plugins/status - Get plugin health status
+func (s *Server) PluginStatusHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	// Define plugins with their ports
+	plugins := []map[string]interface{}{
+		{"name": "Arbetsförmedlingen", "port": 8081, "id": "arbetsformedlingen"},
+		{"name": "EURES", "port": 8082, "id": "eures"},
+		{"name": "Remotive", "port": 8083, "id": "remotive"},
+		{"name": "RemoteOK", "port": 8084, "id": "remoteok"},
+	}
+
+	// Check health of each plugin and get job count
+	var pluginStatus []map[string]interface{}
+	for _, plugin := range plugins {
+		port := plugin["port"].(int)
+		id := plugin["id"].(string)
+		name := plugin["name"].(string)
+
+		// Check health
+		healthURL := fmt.Sprintf("http://localhost:%d/health", port)
+		resp, err := http.Get(healthURL)
+		status := "unhealthy"
+		if err == nil && resp.StatusCode == 200 {
+			status = "healthy"
+			resp.Body.Close()
+		}
+
+		// Get job count for this connector from sync logs
+		logs, _ := s.jobStore.GetRecentSyncLogs(100)
+		jobCount := 0
+		for _, log := range logs {
+			if log.ConnectorName == id && log.Status == "success" {
+				jobCount = log.JobsInserted
+				break
+			}
+		}
+
+		pluginStatus = append(pluginStatus, map[string]interface{}{
+			"name":   name,
+			"port":   port,
+			"status": status,
+			"jobs":   jobCount,
+		})
+	}
+
+	response := models.APIResponse{
+		Success: true,
+		Data:    pluginStatus,
 	}
 
 	json.NewEncoder(w).Encode(response)

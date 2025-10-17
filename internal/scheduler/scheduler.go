@@ -136,16 +136,9 @@ func (s *Scheduler) RunManualSync() error {
 		}
 	}
 
-	// Also try local connectors as fallback (for backward compatibility)
-	localConnectors := s.registry.GetEnabledConnectors()
-	for _, connector := range localConnectors {
-		err := connector.SyncJobs()
-		if err != nil {
-			log.Printf("❌ %s sync failed: %v", connector.GetName(), err)
-		} else {
-			fmt.Printf("✅ %s sync completed\n", connector.GetName())
-		}
-	}
+	// NOTE: Do NOT run local connectors here - they are already running as HTTP plugins
+	// Running both would cause duplicate sync logs and duplicate job entries
+	// The local connectors in the registry are only used for scheduled syncs in non-microservice mode
 
 	return nil
 }

@@ -262,6 +262,10 @@ func main() {
 	fmt.Println("📝 Registering route: /sync/logs")
 	http.HandleFunc("/sync/logs", server.SyncLogsHandler)
 
+	// Plugin status route
+	fmt.Println("📝 Registering route: /plugins/status")
+	http.HandleFunc("/plugins/status", server.PluginStatusHandler)
+
 	// Start server
 	port := os.Getenv("PORT")
 	if port == "" {
