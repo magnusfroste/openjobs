@@ -297,7 +297,18 @@ func (s *Server) DashboardHandler(w http.ResponseWriter, r *http.Request) {
                 document.getElementById('total-jobs').textContent = jobsData.data?.length >= 0 ? '100+' : '0';
                 document.getElementById('plugins').textContent = '4';
                 document.getElementById('remote').textContent = '96';
-                document.getElementById('last-sync').textContent = new Date().toLocaleTimeString();
+                
+                // Show last sync from actual data, not current time
+                if (healthData.data.summary.last_sync) {
+                    const lastSync = new Date(healthData.data.summary.last_sync);
+                    const hours = String(lastSync.getHours()).padStart(2, '0');
+                    const minutes = String(lastSync.getMinutes()).padStart(2, '0');
+                    const day = String(lastSync.getDate()).padStart(2, '0');
+                    const month = String(lastSync.getMonth() + 1).padStart(2, '0');
+                    document.getElementById('last-sync').textContent = hours + ':' + minutes + ' ' + day + '/' + month;
+                } else {
+                    document.getElementById('last-sync').textContent = 'Never';
+                }
 
                 // Fetch and update plugin status from API
                 const pluginRes = await fetch('/plugins/status');
@@ -458,16 +469,31 @@ func (s *Server) AnalyticsHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 
-	// Return mock analytics data with activity logs
+	// Get real data from database
+	totalJobs, _ := s.jobStore.GetTotalJobCount()
+	remoteJobs, _ := s.jobStore.GetRemoteJobCount()
+	remotePercentage := 0
+	if totalJobs > 0 {
+		remotePercentage = (remoteJobs * 100) / totalJobs
+	}
+	
+	// Get last sync time from sync logs
+	lastSyncTime := "2025-10-15T23:26:17Z" // Fallback
+	logs, err := s.jobStore.GetRecentSyncLogs(1)
+	if err == nil && len(logs) > 0 {
+		lastSyncTime = logs[0].StartedAt.Format(time.RFC3339)
+	}
+
+	// Return real analytics data
 	response := models.APIResponse{
 		Success: true,
 		Data: map[string]interface{}{
 			"summary": map[string]interface{}{
-				"total_jobs":        48,
-				"sources_count":     3,
+				"total_jobs":        totalJobs,
+				"sources_count":     4,
 				"countries_covered": 8,
-				"remote_percentage": 35,
-				"last_sync":         "2025-10-15T23:26:17Z",
+				"remote_percentage": remotePercentage,
+				"last_sync":         lastSyncTime,
 				"sync_status":       "success",
 			},
 			"sources": []map[string]interface{}{

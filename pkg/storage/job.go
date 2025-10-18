@@ -7,6 +7,8 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strconv"
+	"strings"
 
 	"openjobs/pkg/models"
 )
@@ -260,4 +262,87 @@ func (js *JobStore) GetRecentSyncLogs(limit int) ([]models.SyncLog, error) {
 	}
 
 	return logs, nil
+}
+
+// GetTotalJobCount returns the total number of jobs in the database
+func (js *JobStore) GetTotalJobCount() (int, error) {
+	url := fmt.Sprintf("%s/rest/v1/job_posts?select=count", js.supabaseURL)
+	req, err := http.NewRequest("HEAD", url, nil)
+	if err != nil {
+		return 0, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", js.supabaseKey))
+	req.Header.Set("apikey", js.supabaseKey)
+	req.Header.Set("Prefer", "count=exact")
+
+	resp, err := js.httpClient.Do(req)
+	if err != nil {
+		return 0, fmt.Errorf("failed to execute request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		return 0, fmt.Errorf("supabase error %d", resp.StatusCode)
+	}
+
+	// Parse Content-Range header: "0-24/145" -> 145
+	contentRange := resp.Header.Get("Content-Range")
+	if contentRange == "" {
+		return 0, nil
+	}
+
+	// Extract total from "0-24/145"
+	parts := strings.Split(contentRange, "/")
+	if len(parts) != 2 {
+		return 0, nil
+	}
+
+	total, err := strconv.Atoi(parts[1])
+	if err != nil {
+		return 0, fmt.Errorf("failed to parse total count: %w", err)
+	}
+
+	return total, nil
+}
+
+// GetRemoteJobCount returns the number of remote jobs in the database
+func (js *JobStore) GetRemoteJobCount() (int, error) {
+	url := fmt.Sprintf("%s/rest/v1/job_posts?select=count&is_remote=eq.true", js.supabaseURL)
+	req, err := http.NewRequest("HEAD", url, nil)
+	if err != nil {
+		return 0, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", js.supabaseKey))
+	req.Header.Set("apikey", js.supabaseKey)
+	req.Header.Set("Prefer", "count=exact")
+
+	resp, err := js.httpClient.Do(req)
+	if err != nil {
+		return 0, fmt.Errorf("failed to execute request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		return 0, fmt.Errorf("supabase error %d", resp.StatusCode)
+	}
+
+	// Parse Content-Range header
+	contentRange := resp.Header.Get("Content-Range")
+	if contentRange == "" {
+		return 0, nil
+	}
+
+	parts := strings.Split(contentRange, "/")
+	if len(parts) != 2 {
+		return 0, nil
+	}
+
+	total, err := strconv.Atoi(parts[1])
+	if err != nil {
+		return 0, fmt.Errorf("failed to parse total count: %w", err)
+	}
+
+	return total, nil
 }

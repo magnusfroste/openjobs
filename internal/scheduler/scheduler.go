@@ -71,18 +71,25 @@ func (s *Scheduler) Stop() {
 func (s *Scheduler) runSync() {
 	fmt.Printf("⏰ Running scheduled job sync at %s\n", time.Now().Format("2006-01-02 15:04:05"))
 
-	// Get all enabled connectors from registry
-	connectors := s.registry.GetEnabledConnectors()
+	// Check if we should use HTTP plugins (microservices mode) or local connectors (monolith mode)
+	useHTTPPlugins := os.Getenv("USE_HTTP_PLUGINS") == "true"
 
-	for _, connector := range connectors {
-		// Check if connector is enabled (future feature)
-		// if !connector.IsEnabled() { continue }
+	if useHTTPPlugins {
+		// Microservices mode: Call plugin containers via HTTP
+		fmt.Println("🔌 Using HTTP plugin containers (microservices mode)")
+		s.RunManualSync()
+	} else {
+		// Monolith mode: Run local connectors directly
+		fmt.Println("📦 Using local connectors (monolith mode)")
+		connectors := s.registry.GetEnabledConnectors()
 
-		err := connector.SyncJobs()
-		if err != nil {
-			log.Printf("❌ %s sync failed: %v", connector.GetName(), err)
-		} else {
-			fmt.Printf("✅ %s sync completed\n", connector.GetName())
+		for _, connector := range connectors {
+			err := connector.SyncJobs()
+			if err != nil {
+				log.Printf("❌ %s sync failed: %v", connector.GetName(), err)
+			} else {
+				fmt.Printf("✅ %s sync completed\n", connector.GetName())
+			}
 		}
 	}
 

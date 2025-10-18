@@ -197,6 +197,8 @@ func main() {
 	jobStore := storage.NewJobStore()
 
 	// Initialize scheduler for job ingestion
+	// Scheduler will call HTTP plugins if USE_HTTP_PLUGINS=true (microservices mode)
+	// or run local connectors if USE_HTTP_PLUGINS=false (monolith mode)
 	jobScheduler := scheduler.NewScheduler(jobStore)
 	jobScheduler.Start()
 
