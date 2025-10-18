@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"strconv"
 	"time"
 
@@ -808,6 +809,14 @@ func (s *Server) PluginStatusHandler(w http.ResponseWriter, r *http.Request) {
 		{"name": "RemoteOK", "port": 8084, "id": "remoteok"},
 	}
 
+	// Get plugin URLs from environment
+	pluginURLs := map[string]string{
+		"arbetsformedlingen": os.Getenv("PLUGIN_ARBETSFORMEDLINGEN_URL"),
+		"eures":              os.Getenv("PLUGIN_EURES_URL"),
+		"remotive":           os.Getenv("PLUGIN_REMOTIVE_URL"),
+		"remoteok":           os.Getenv("PLUGIN_REMOTEOK_URL"),
+	}
+
 	// Check health of each plugin and get job count
 	var pluginStatus []map[string]interface{}
 	for _, plugin := range plugins {
@@ -815,8 +824,13 @@ func (s *Server) PluginStatusHandler(w http.ResponseWriter, r *http.Request) {
 		id := plugin["id"].(string)
 		name := plugin["name"].(string)
 
-		// Check health
-		healthURL := fmt.Sprintf("http://localhost:%d/health", port)
+		// Check health using environment URL or fallback to localhost
+		baseURL := pluginURLs[id]
+		if baseURL == "" {
+			baseURL = fmt.Sprintf("http://localhost:%d", port)
+		}
+		healthURL := fmt.Sprintf("%s/health", baseURL)
+		
 		resp, err := http.Get(healthURL)
 		status := "unhealthy"
 		if err == nil && resp.StatusCode == 200 {
