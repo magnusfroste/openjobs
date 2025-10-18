@@ -45,7 +45,7 @@ type RemotiveResponse struct {
 func NewRemotiveConnector(store *storage.JobStore) *RemotiveConnector {
 	return &RemotiveConnector{
 		store:     store,
-		baseURL:   "https://remotive.io/api",
+		baseURL:   "https://remotive.com/api", // Changed from remotive.io to remotive.com (SSL issue on .io)
 		userAgent: "OpenJobs-Remotive-Connector/1.0",
 	}
 }
