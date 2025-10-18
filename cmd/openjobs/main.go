@@ -17,6 +17,10 @@ import (
 	"github.com/joho/godotenv"
 )
 
+// Version is set at build time via -ldflags
+var Version = "dev"
+var BuildTime = "unknown"
+
 // PluginManager handles plugin lifecycle - DEPRECATED, use PluginRegistry instead
 type PluginManager struct {
 	plugins map[string]models.PluginInfo
@@ -65,9 +69,10 @@ func healthCheck(w http.ResponseWriter, r *http.Request) {
 	response := models.APIResponse{
 		Success: true,
 		Data: map[string]string{
-			"status":  "healthy",
-			"service": "openjobs",
-			"version": "1.0.0",
+			"status":     "healthy",
+			"service":    "openjobs",
+			"version":    Version,
+			"build_time": BuildTime,
 		},
 	}
 
