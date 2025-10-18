@@ -205,16 +205,28 @@ func (rc *RemotiveConnector) parseRemotiveDate(dateStr string) time.Time {
 
 // SyncJobs fetches jobs from Remotive and stores them
 func (rc *RemotiveConnector) SyncJobs() error {
+	startTime := time.Now()
 	fmt.Println("🔄 Starting Remotive remote jobs sync...")
 
 	jobs, err := rc.FetchJobs()
 	if err != nil {
+		// Log failed sync
+		rc.store.LogSync(&models.SyncLog{
+			ConnectorName: rc.GetID(),
+			StartedAt:     startTime,
+			CompletedAt:   time.Now(),
+			JobsFetched:   0,
+			JobsInserted:  0,
+			JobsDuplicates: 0,
+			Status:        "failed",
+		})
 		return fmt.Errorf("failed to fetch jobs from Remotive: %w", err)
 	}
 
 	fmt.Printf("📥 Fetched %d remote jobs from Remotive\n", len(jobs))
 
 	stored := 0
+	duplicates := 0
 	for _, job := range jobs {
 		// Check if job already exists
 		existing, err := rc.store.GetJob(job.ID)
@@ -225,6 +237,7 @@ func (rc *RemotiveConnector) SyncJobs() error {
 
 		if existing != nil {
 			// Job already exists, skip
+			duplicates++
 			continue
 		}
 
@@ -239,7 +252,20 @@ func (rc *RemotiveConnector) SyncJobs() error {
 		fmt.Printf("✅ Stored remote job: %s at %s\n", job.Title, job.Company)
 	}
 
-	fmt.Printf("🎉 Remotive sync complete! Fetched: %d, Stored: %d\n", len(jobs), stored)
+	// Log successful sync
+	if err := rc.store.LogSync(&models.SyncLog{
+		ConnectorName:  rc.GetID(),
+		StartedAt:      startTime,
+		CompletedAt:    time.Now(),
+		JobsFetched:    len(jobs),
+		JobsInserted:   stored,
+		JobsDuplicates: duplicates,
+		Status:         "success",
+	}); err != nil {
+		fmt.Printf("⚠️  Failed to log sync: %v\n", err)
+	}
+
+	fmt.Printf("🎉 Remotive sync complete! Fetched: %d, Inserted: %d, Duplicates: %d\n", len(jobs), stored, duplicates)
 	return nil
 }
 // extractRequirements extracts keywords from title, description, and tags

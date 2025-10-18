@@ -292,12 +292,12 @@ func (s *Server) DashboardHandler(w http.ResponseWriter, r *http.Request) {
     <script>
         async function loadDashboard() {
             try {
-                const [jobsRes, healthRes] = await Promise.all([
-                    fetch('/jobs?limit=1'),
+                const [analyticsRes, healthRes] = await Promise.all([
+                    fetch('/analytics'),
                     fetch('/health')
                 ]);
                 
-                const jobsData = await jobsRes.json();
+                const analyticsData = await analyticsRes.json();
                 const healthData = await healthRes.json();
 
                 // Update version info
@@ -308,20 +308,29 @@ func (s *Server) DashboardHandler(w http.ResponseWriter, r *http.Request) {
                     }
                 }
 
-                // Update stats
-                document.getElementById('total-jobs').textContent = jobsData.data?.length >= 0 ? '100+' : '0';
-                document.getElementById('plugins').textContent = '4';
-                document.getElementById('remote').textContent = '96';
-                
-                // Show last sync from actual data, not current time
-                if (healthData.data.summary.last_sync) {
-                    const lastSync = new Date(healthData.data.summary.last_sync);
-                    const hours = String(lastSync.getHours()).padStart(2, '0');
-                    const minutes = String(lastSync.getMinutes()).padStart(2, '0');
-                    const day = String(lastSync.getDate()).padStart(2, '0');
-                    const month = String(lastSync.getMonth() + 1).padStart(2, '0');
-                    document.getElementById('last-sync').textContent = hours + ':' + minutes + ' ' + day + '/' + month;
+                // Update stats from analytics summary
+                const summary = analyticsData.data?.summary;
+                if (summary) {
+                    document.getElementById('total-jobs').textContent = summary.total_jobs || '0';
+                    document.getElementById('plugins').textContent = summary.sources_count || '4';
+                    document.getElementById('remote').textContent = summary.remote_percentage + '%' || '0%';
+                    
+                    // Show last sync from analytics
+                    if (summary.last_sync) {
+                        const lastSync = new Date(summary.last_sync);
+                        const hours = String(lastSync.getHours()).padStart(2, '0');
+                        const minutes = String(lastSync.getMinutes()).padStart(2, '0');
+                        const day = String(lastSync.getDate()).padStart(2, '0');
+                        const month = String(lastSync.getMonth() + 1).padStart(2, '0');
+                        document.getElementById('last-sync').textContent = hours + ':' + minutes + ' ' + day + '/' + month;
+                    } else {
+                        document.getElementById('last-sync').textContent = 'Never';
+                    }
                 } else {
+                    // Fallback values
+                    document.getElementById('total-jobs').textContent = '0';
+                    document.getElementById('plugins').textContent = '4';
+                    document.getElementById('remote').textContent = '0%';
                     document.getElementById('last-sync').textContent = 'Never';
                 }
 
@@ -402,10 +411,10 @@ func (s *Server) DashboardHandler(w http.ResponseWriter, r *http.Request) {
 
             } catch (error) {
                 console.error('Error loading dashboard:', error);
-                document.getElementById('total-jobs').textContent = '100+';
-                document.getElementById('plugins').textContent = '4';
-                document.getElementById('remote').textContent = '96';
-                document.getElementById('last-sync').textContent = 'Just now';
+                document.getElementById('total-jobs').textContent = 'Error';
+                document.getElementById('plugins').textContent = 'Error';
+                document.getElementById('remote').textContent = 'Error';
+                document.getElementById('last-sync').textContent = 'Error';
             }
         }
 
