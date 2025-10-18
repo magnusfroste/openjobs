@@ -280,6 +280,12 @@ func (s *Server) DashboardHandler(w http.ResponseWriter, r *http.Request) {
                 <div><strong>GET</strong> /analytics - Get analytics data</div>
             </div>
         </div>
+
+        <!-- Version footer -->
+        <div style="text-align: center; margin-top: 3rem; padding: 1.5rem; color: var(--text-secondary); font-size: 0.75rem; opacity: 0.6;">
+            <div id="version-info">OpenJobs v<span id="app-version">-</span></div>
+            <div id="build-time" style="font-size: 0.7rem; margin-top: 0.25rem;"></div>
+        </div>
     </div>
 
     <script>
@@ -292,6 +298,14 @@ func (s *Server) DashboardHandler(w http.ResponseWriter, r *http.Request) {
                 
                 const jobsData = await jobsRes.json();
                 const healthData = await healthRes.json();
+
+                // Update version info
+                if (healthData.data?.version) {
+                    document.getElementById('app-version').textContent = healthData.data.version;
+                    if (healthData.data.build_time && healthData.data.build_time !== 'unknown') {
+                        document.getElementById('build-time').textContent = 'Built: ' + healthData.data.build_time;
+                    }
+                }
 
                 // Update stats
                 document.getElementById('total-jobs').textContent = jobsData.data?.length >= 0 ? '100+' : '0';

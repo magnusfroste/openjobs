@@ -75,12 +75,22 @@ func (rc *RemotiveConnector) FetchJobs() ([]models.JobPost, error) {
 	client := &http.Client{Timeout: 30 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch jobs from Remotive: %w", err)
+		// Remotive API often has SSL issues - return empty array instead of failing
+		fmt.Printf("⚠️  Remotive API unavailable (SSL/connection error): %v\n", err)
+		fmt.Println("   Skipping Remotive sync - will retry next cycle")
+		return []models.JobPost{}, nil // Return empty array, don't fail
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
+		// Check if it's a Cloudflare SSL error (526)
+		if resp.StatusCode == 526 || strings.Contains(string(body), "Invalid SSL certificate") {
+			fmt.Printf("⚠️  Remotive API has SSL certificate issues (Error 526)\n")
+			fmt.Println("   This is a Remotive server issue, not a problem with OpenJobs")
+			fmt.Println("   Skipping Remotive sync - will retry next cycle")
+			return []models.JobPost{}, nil // Return empty array, don't fail
+		}
 		return nil, fmt.Errorf("remotive API error %d: %s", resp.StatusCode, string(body))
 	}
 
