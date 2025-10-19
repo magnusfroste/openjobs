@@ -273,6 +273,10 @@ func main() {
 	fmt.Println("📝 Registering route: /plugins/status")
 	http.HandleFunc("/plugins/status", server.PluginStatusHandler)
 
+	// Platform metrics route (for enhanced dashboard)
+	fmt.Println("📝 Registering route: /platform/metrics")
+	http.HandleFunc("/platform/metrics", server.PlatformMetricsHandler)
+
 	// Start server
 	port := os.Getenv("PORT")
 	if port == "" {
