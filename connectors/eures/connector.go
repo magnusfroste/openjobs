@@ -96,9 +96,23 @@ func (ec *EURESConnector) FetchJobs() ([]models.JobPost, error) {
 
 // fetchJobsFromCountry fetches jobs from a specific country
 func (ec *EURESConnector) fetchJobsFromCountry(country string) ([]models.JobPost, error) {
+	// Get last sync time for incremental sync
+	lastSync := ec.getLastSyncTime()
+	
 	// Build API URL with credentials - Adzuna API format
-	url := fmt.Sprintf("%s/%s/search/1?app_id=%s&app_key=%s&results_per_page=10&what=developer+OR+programmer+OR+software",
+	url := fmt.Sprintf("%s/%s/search/1?app_id=%s&app_key=%s&results_per_page=100&what=developer+OR+programmer+OR+software",
 		ec.baseURL, country, ec.appID, ec.appKey)
+	
+	// Add date filter if we have a last sync time
+	if !lastSync.IsZero() {
+		// Calculate days since last sync
+		daysSince := int(time.Since(lastSync).Hours() / 24)
+		if daysSince < 1 {
+			daysSince = 1 // Minimum 1 day
+		}
+		url += fmt.Sprintf("&max_days_old=%d", daysSince)
+		fmt.Printf("📅 Fetching jobs from last %d days\n", daysSince)
+	}
 
 	fmt.Printf("🔍 Fetching jobs from Adzuna (%s)...\n", country)
 
@@ -445,4 +459,16 @@ func (ec *EURESConnector) extractRequirementsFromText(title, description string)
 	}
 	
 	return requirements
+}
+
+// getLastSyncTime retrieves the timestamp of the most recent job in database
+func (ec *EURESConnector) getLastSyncTime() time.Time {
+	job, err := ec.store.GetMostRecentJob("eures-")
+	if err != nil {
+		fmt.Println("📅 No previous EURES jobs found - fetching all jobs")
+		return time.Time{}
+	}
+	
+	fmt.Printf("📅 Last EURES job in database: %s (posted: %s)\n", job.Title, job.PostedDate.Format("2006-01-02"))
+	return job.PostedDate
 }
