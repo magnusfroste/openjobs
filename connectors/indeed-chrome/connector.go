@@ -48,6 +48,9 @@ func (icc *IndeedChromeConnector) FetchJobs() ([]models.JobPost, error) {
 		"developer",
 		"engineer",
 		"designer",
+		"manager",
+		"sales",
+		"marketing",
 	}
 	
 	// Get last sync time for incremental sync
@@ -56,8 +59,12 @@ func (icc *IndeedChromeConnector) FetchJobs() ([]models.JobPost, error) {
 	for _, query := range queries {
 		fmt.Printf("🔍 Scraping Indeed with Chrome for: '%s'\n", query)
 		
-		// Scrape first 2 pages (0, 10) = 20 jobs per query
-		for start := 0; start < 20; start += 10 {
+		duplicateCount := 0
+		maxDuplicatesBeforeStop := 20 // Stop if we see 20 duplicates in a row
+		
+		// Scrape first 10 pages (0-90) = 100 jobs per query
+		// Since we run once per day, maximize coverage
+		for start := 0; start < 100; start += 10 {
 			jobs, err := icc.scrapePage(query, start)
 			if err != nil {
 				fmt.Printf("⚠️  Error scraping page %d for query '%s': %v\n", start/10+1, query, err)
@@ -65,14 +72,32 @@ func (icc *IndeedChromeConnector) FetchJobs() ([]models.JobPost, error) {
 			}
 			
 			if len(jobs) == 0 {
+				fmt.Printf("   ℹ️  No more results for '%s' at page %d\n", query, start/10+1)
 				break // No more results
 			}
 			
+			newJobsOnPage := 0
 			// Filter to only new jobs
 			for _, job := range jobs {
 				if lastSync.IsZero() || job.PostedDate.After(lastSync) {
 					allJobs = append(allJobs, job)
+					newJobsOnPage++
 				}
+			}
+			
+			// Early stopping: if we found no new jobs on this page, increment duplicate counter
+			if newJobsOnPage == 0 {
+				duplicateCount += len(jobs)
+				fmt.Printf("   ℹ️  Page %d: All %d jobs already seen (total duplicates: %d)\n", start/10+1, len(jobs), duplicateCount)
+				
+				// Stop if we've seen too many duplicates (means we've caught up)
+				if duplicateCount >= maxDuplicatesBeforeStop {
+					fmt.Printf("   ✅ Stopping '%s' - caught up with existing jobs\n", query)
+					break
+				}
+			} else {
+				duplicateCount = 0 // Reset counter if we found new jobs
+				fmt.Printf("   ✅ Page %d: Found %d new jobs\n", start/10+1, newJobsOnPage)
 			}
 			
 			// Rate limiting - be respectful!
