@@ -154,6 +154,7 @@ func (s *Scheduler) RunManualSync() error {
 		"eures":              os.Getenv("PLUGIN_EURES_URL"),
 		"remotive":           os.Getenv("PLUGIN_REMOTIVE_URL"),
 		"remoteok":           os.Getenv("PLUGIN_REMOTEOK_URL"),
+		"indeed-chrome":      os.Getenv("PLUGIN_INDEED_CHROME_URL"),
 	}
 
 	// Default URLs for Docker Compose setup
@@ -169,6 +170,9 @@ func (s *Scheduler) RunManualSync() error {
 	if pluginURLs["remoteok"] == "" {
 		pluginURLs["remoteok"] = "http://localhost:8084"
 	}
+	if pluginURLs["indeed-chrome"] == "" {
+		pluginURLs["indeed-chrome"] = "http://localhost:8087"
+	}
 
 	// Sync all HTTP plugins
 	pluginNames := map[string]string{
@@ -176,6 +180,7 @@ func (s *Scheduler) RunManualSync() error {
 		"eures":              "EURES",
 		"remotive":           "Remotive",
 		"remoteok":           "RemoteOK",
+		"indeed-chrome":      "Indeed Chrome",
 	}
 
 	for id, url := range pluginURLs {
