@@ -99,8 +99,17 @@ func (icc *IndeedChromeConnector) scrapePage(query string, start int) ([]models.
 		start,
 	)
 	
-	// Create Chrome context
-	ctx, cancel := chromedp.NewContext(context.Background())
+	// Create Chrome context with options for Docker/root environment
+	opts := append(chromedp.DefaultExecAllocatorOptions[:],
+		chromedp.Flag("no-sandbox", true),
+		chromedp.Flag("disable-setuid-sandbox", true),
+		chromedp.Flag("disable-dev-shm-usage", true),
+	)
+	
+	allocCtx, cancel := chromedp.NewExecAllocator(context.Background(), opts...)
+	defer cancel()
+	
+	ctx, cancel := chromedp.NewContext(allocCtx)
 	defer cancel()
 	
 	// Set timeout - Chrome needs more time
@@ -267,8 +276,17 @@ func (icc *IndeedChromeConnector) createJobPost(card map[string]string) *models.
 func (icc *IndeedChromeConnector) scrapeJobDescription(jobURL, jobKey string) string {
 	description := ""
 	
-	// Create Chrome context
-	ctx, cancel := chromedp.NewContext(context.Background())
+	// Create Chrome context with options for Docker/root environment
+	opts := append(chromedp.DefaultExecAllocatorOptions[:],
+		chromedp.Flag("no-sandbox", true),
+		chromedp.Flag("disable-setuid-sandbox", true),
+		chromedp.Flag("disable-dev-shm-usage", true),
+	)
+	
+	allocCtx, cancel := chromedp.NewExecAllocator(context.Background(), opts...)
+	defer cancel()
+	
+	ctx, cancel := chromedp.NewContext(allocCtx)
 	defer cancel()
 	
 	// Set timeout - Job pages need time too
