@@ -100,12 +100,14 @@ func (icc *IndeedChromeConnector) scrapePage(query string, start int) ([]models.
 	)
 	
 	// Create Chrome context with options for Docker/root environment
-	opts := append(chromedp.DefaultExecAllocatorOptions[:],
+	opts := []chromedp.ExecAllocatorOption{
 		chromedp.NoSandbox,
 		chromedp.DisableGPU,
 		chromedp.Flag("disable-dev-shm-usage", true),
 		chromedp.Flag("disable-setuid-sandbox", true),
-	)
+		chromedp.Flag("headless", true),
+		chromedp.ExecPath("/usr/bin/chromium-browser"),
+	}
 	
 	allocCtx, cancel := chromedp.NewExecAllocator(context.Background(), opts...)
 	defer cancel()
@@ -278,12 +280,14 @@ func (icc *IndeedChromeConnector) scrapeJobDescription(jobURL, jobKey string) st
 	description := ""
 	
 	// Create Chrome context with options for Docker/root environment
-	opts := append(chromedp.DefaultExecAllocatorOptions[:],
+	opts := []chromedp.ExecAllocatorOption{
 		chromedp.NoSandbox,
 		chromedp.DisableGPU,
 		chromedp.Flag("disable-dev-shm-usage", true),
 		chromedp.Flag("disable-setuid-sandbox", true),
-	)
+		chromedp.Flag("headless", true),
+		chromedp.ExecPath("/usr/bin/chromium-browser"),
+	}
 	
 	allocCtx, cancel := chromedp.NewExecAllocator(context.Background(), opts...)
 	defer cancel()
