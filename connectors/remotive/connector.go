@@ -62,7 +62,7 @@ func (rc *RemotiveConnector) GetName() string {
 
 // FetchJobs fetches job listings from Remotive API
 func (rc *RemotiveConnector) FetchJobs() ([]models.JobPost, error) {
-	url := fmt.Sprintf("%s/remote-jobs?limit=10", rc.baseURL)
+	url := fmt.Sprintf("%s/remote-jobs?limit=100", rc.baseURL) // Increased from 10 to 100
 
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
