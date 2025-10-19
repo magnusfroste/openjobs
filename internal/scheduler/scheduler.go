@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 	"time"
 
 	"openjobs/connectors/arbetsformedlingen"
@@ -12,13 +13,16 @@ import (
 	"openjobs/connectors/remotive"
 	"openjobs/pkg/models"
 	"openjobs/pkg/storage"
+	
+	"github.com/robfig/cron/v3"
 )
 
 // Scheduler manages periodic job data ingestion
 type Scheduler struct {
-	registry *models.PluginRegistry
-	interval time.Duration
-	stopChan chan bool
+	registry     *models.PluginRegistry
+	interval     time.Duration
+	cronSchedule string
+	stopChan     chan bool
 }
 
 // NewScheduler creates a new scheduler instance
@@ -32,15 +36,35 @@ func NewScheduler(store *storage.JobStore) *Scheduler {
 	registry.Register(remoteok.NewRemoteOKConnector(store))
 	registry.Register(remotive.NewRemotiveConnector(store))
 
+	// Check for cron schedule first (takes priority)
+	cronSchedule := os.Getenv("CRON_SCHEDULE")
+	
+	// Get sync interval from environment variable (default: 24 hours)
+	syncIntervalHours := 24 // Default to once per day
+	if envInterval := os.Getenv("SYNC_INTERVAL_HOURS"); envInterval != "" {
+		if hours, err := strconv.Atoi(envInterval); err == nil {
+			syncIntervalHours = hours
+		}
+	}
+	
 	return &Scheduler{
-		registry: registry,
-		interval: time.Hour * 6, // Run every 6 hours
-		stopChan: make(chan bool),
+		registry:     registry,
+		interval:     time.Hour * time.Duration(syncIntervalHours), // Configurable via SYNC_INTERVAL_HOURS
+		cronSchedule: cronSchedule,                                  // Configurable via CRON_SCHEDULE (takes priority)
+		stopChan:     make(chan bool),
 	}
 }
 
 // Start begins the scheduled job ingestion
 func (s *Scheduler) Start() {
+	// Check if cron schedule is set (takes priority)
+	if s.cronSchedule != "" {
+		fmt.Printf("⏰ Starting job ingestion with cron schedule: %s\n", s.cronSchedule)
+		s.startCronScheduler()
+		return
+	}
+	
+	// Otherwise use interval-based scheduling
 	fmt.Printf("🚀 Starting job ingestion scheduler (every %v)\n", s.interval)
 
 	// Run immediately on start
@@ -60,6 +84,30 @@ func (s *Scheduler) Start() {
 			}
 		}
 	}()
+}
+
+// startCronScheduler starts the cron-based scheduler
+func (s *Scheduler) startCronScheduler() {
+	c := cron.New()
+	
+	_, err := c.AddFunc(s.cronSchedule, func() {
+		fmt.Printf("\n⏰ Cron triggered at: %s\n", time.Now().Format("2006-01-02 15:04:05"))
+		s.runSync()
+	})
+	
+	if err != nil {
+		log.Fatalf("❌ Invalid cron schedule '%s': %v", s.cronSchedule, err)
+	}
+	
+	c.Start()
+	fmt.Printf("✅ Cron scheduler started\n")
+	fmt.Printf("📅 Examples:\n")
+	fmt.Printf("   '0 6 * * *'   - Every day at 6:00 AM\n")
+	fmt.Printf("   '0 */6 * * *' - Every 6 hours\n")
+	fmt.Printf("   '0 0 * * *'   - Every day at midnight\n\n")
+	
+	// Run immediately on start
+	go s.runSync()
 }
 
 // Stop halts the scheduled job ingestion

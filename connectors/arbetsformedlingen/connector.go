@@ -159,11 +159,23 @@ func (ac *ArbetsformedlingenConnector) FetchJobs() ([]models.JobPost, error) {
 	req.Header.Set("User-Agent", ac.userAgent)
 	req.Header.Set("Accept", "application/json")
 
+	// Get last sync time for incremental sync
+	lastSync := ac.getLastSyncTime()
+	
 	// Add query parameters
 	q := req.URL.Query()
 	q.Add("q", "utvecklare OR programmer OR software") // Search for developer/programmer jobs
-	q.Add("limit", "20")                               // Get 20 jobs
+	q.Add("limit", "500")                             // ⭐ Increased from 20 to 500
 	q.Add("sort", "pubdate-desc")                      // Sort by publication date descending
+	
+	// ⭐ Add timestamp filter for incremental sync
+	if !lastSync.IsZero() {
+		// Format: 2025-10-19 (Arbetsförmedlingen API uses this format)
+		publishedAfter := lastSync.Format("2006-01-02")
+		q.Add("published-after", publishedAfter)
+		fmt.Printf("📅 Fetching jobs published after: %s\n", publishedAfter)
+	}
+	
 	req.URL.RawQuery = q.Encode()
 
 	// Make the request
@@ -709,6 +721,11 @@ func (ac *ArbetsformedlingenConnector) SyncJobs() error {
 		fmt.Printf("⚠️  Failed to log sync: %v\n", err)
 	}
 
+	// ⭐ Save sync timestamp for next incremental sync
+	if err := ac.saveLastSyncTime(); err != nil {
+		fmt.Printf("⚠️  Failed to save sync timestamp: %v\n", err)
+	}
+	
 	fmt.Printf("🎉 Arbetsförmedlingen sync complete! Fetched: %d, Inserted: %d, Duplicates: %d\n", len(jobs), stored, duplicates)
 	return nil
 }
@@ -728,4 +745,26 @@ func (ac *ArbetsformedlingenConnector) extractSkillLabels(skills interface{}) []
 	}
 	
 	return labels
+}
+
+// getLastSyncTime retrieves the timestamp of the most recent job in database
+// This is used for incremental sync - only fetch jobs newer than this
+func (ac *ArbetsformedlingenConnector) getLastSyncTime() time.Time {
+	// Query the most recent job's posted_date from our connector
+	job, err := ac.store.GetMostRecentJob("af-")
+	if err != nil {
+		// No jobs yet or error - this is first sync
+		fmt.Println("📅 No previous jobs found - fetching all jobs")
+		return time.Time{}
+	}
+	
+	fmt.Printf("📅 Last job in database: %s (posted: %s)\n", job.Title, job.PostedDate.Format("2006-01-02"))
+	return job.PostedDate
+}
+
+// saveLastSyncTime is no longer needed - database tracks this automatically
+// Keeping empty function for compatibility
+func (ac *ArbetsformedlingenConnector) saveLastSyncTime() error {
+	// Database automatically tracks via posted_date - no action needed
+	return nil
 }

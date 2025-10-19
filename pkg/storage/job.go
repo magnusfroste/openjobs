@@ -346,3 +346,47 @@ func (js *JobStore) GetRemoteJobCount() (int, error) {
 
 	return total, nil
 }
+
+// GetMostRecentJob retrieves the most recent job for a given connector (by ID prefix)
+// Used for incremental sync - finds the last job posted to determine where to continue
+func (js *JobStore) GetMostRecentJob(idPrefix string) (*models.JobPost, error) {
+	// Query for most recent job with matching ID prefix, ordered by posted_date
+	url := fmt.Sprintf("%s/rest/v1/job_posts?select=*&id=like.%s*&order=posted_date.desc&limit=1", 
+		js.supabaseURL, idPrefix)
+	
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", js.supabaseKey))
+	req.Header.Set("apikey", js.supabaseKey)
+
+	resp, err := js.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("supabase error %d: %s", resp.StatusCode, string(body))
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response: %w", err)
+	}
+
+	var jobs []models.JobPost
+	err = json.Unmarshal(body, &jobs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
+	}
+
+	if len(jobs) == 0 {
+		return nil, fmt.Errorf("no jobs found with prefix %s", idPrefix)
+	}
+
+	return &jobs[0], nil
+}
