@@ -514,7 +514,7 @@ func (s *Server) AnalyticsHandler(w http.ResponseWriter, r *http.Request) {
 		Data: map[string]interface{}{
 			"summary": map[string]interface{}{
 				"total_jobs":        totalJobs,
-				"sources_count":     4,
+				"sources_count":     6,
 				"countries_covered": 8,
 				"remote_percentage": remotePercentage,
 				"last_sync":         lastSyncTime,
@@ -816,6 +816,8 @@ func (s *Server) PluginStatusHandler(w http.ResponseWriter, r *http.Request) {
 		{"name": "EURES", "port": 8082, "id": "eures"},
 		{"name": "Remotive", "port": 8083, "id": "remotive"},
 		{"name": "RemoteOK", "port": 8084, "id": "remoteok"},
+		{"name": "Indeed Chrome", "port": 8087, "id": "indeed-chrome"},
+		{"name": "Jooble", "port": 8088, "id": "jooble"},
 	}
 
 	// Get plugin URLs from environment
@@ -824,6 +826,8 @@ func (s *Server) PluginStatusHandler(w http.ResponseWriter, r *http.Request) {
 		"eures":              os.Getenv("PLUGIN_EURES_URL"),
 		"remotive":           os.Getenv("PLUGIN_REMOTIVE_URL"),
 		"remoteok":           os.Getenv("PLUGIN_REMOTEOK_URL"),
+		"indeed-chrome":      os.Getenv("PLUGIN_INDEED_CHROME_URL"),
+		"jooble":             os.Getenv("PLUGIN_JOOBLE_URL"),
 	}
 
 	// Check health of each plugin and get job count
