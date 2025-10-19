@@ -105,9 +105,23 @@ func (rc *RemotiveConnector) FetchJobs() ([]models.JobPost, error) {
 		return nil, fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	// Transform to our JobPost format
-	jobs := make([]models.JobPost, 0, len(remotiveResponse.Jobs))
+	// Get last sync time for incremental sync (client-side filtering)
+	lastSync := rc.getLastSyncTime()
+	
+	// Filter jobs to only new ones (posted after last sync)
+	filteredJobs := []RemotiveJob{}
 	for _, remotiveJob := range remotiveResponse.Jobs {
+		jobDate := rc.parseRemotiveDate(remotiveJob.PublicationDate)
+		if lastSync.IsZero() || jobDate.After(lastSync) {
+			filteredJobs = append(filteredJobs, remotiveJob)
+		}
+	}
+	
+	fmt.Printf("📊 Filtered %d jobs from %d total (only new jobs)\n", len(filteredJobs), len(remotiveResponse.Jobs))
+
+	// Transform to our JobPost format
+	jobs := make([]models.JobPost, 0, len(filteredJobs))
+	for _, remotiveJob := range filteredJobs {
 		job := rc.transformRemotiveJob(remotiveJob)
 		jobs = append(jobs, job)
 	}
@@ -353,4 +367,16 @@ return &min, &max, currency
 }
 
 return nil, nil, currency
+}
+
+// getLastSyncTime retrieves the timestamp of the most recent job in database
+func (rc *RemotiveConnector) getLastSyncTime() time.Time {
+	job, err := rc.store.GetMostRecentJob("remotive-")
+	if err != nil {
+		fmt.Println("📅 No previous Remotive jobs found - processing all jobs")
+		return time.Time{}
+	}
+	
+	fmt.Printf("📅 Last Remotive job in database: %s (posted: %s)\n", job.Title, job.PostedDate.Format("2006-01-02"))
+	return job.PostedDate
 }
