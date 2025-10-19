@@ -1,109 +1,172 @@
-# OpenJobs - Open Job Listings Initiative
+# OpenJobs - Job Aggregation Platform
 
-An open-source initiative to create a transparent, community-driven job platform where job listings are public and accessible to everyone. We believe in Open Formats, where jobs are shared freely without paywalls or walled gardens.
+**Microservices-based job aggregation platform with intelligent incremental sync**
 
-## Vision
+OpenJobs aggregates job listings from multiple sources into a unified API, featuring:
+- 🔄 **Incremental Sync** - Only fetch new jobs, avoid duplicates
+- 🐳 **Microservices Architecture** - Each connector runs independently
+- ⏰ **Cron Scheduling** - Precise daily sync at 6:00 AM
+- 📊 **Database-backed State** - No file-based persistence needed
+- 🚀 **High Limits** - Fetch up to 500 jobs per connector
 
-OpenJobs aims to transform the job market by:
-- Making job listings completely public and accessible
-- Enabling innovation through open data formats
-- Empowering talent matching with AI assistance
-- Building a collaborative ecosystem for job seekers and employers
+## 🎯 Current Status
 
-## Core Philosophy
+**Production Deployment:** https://app-openjobs.katsu6.easypanel.host
 
-**Open Access**: All job listings are publicly available without walled gardens
-**Open Data**: Standardized formats for easy integration and sharing
-**Open Innovation**: Community-driven development focused on transparency
-**Open Talent**: AI-assisted matching that benefits everyone, not corporations
-**Open Sharing**: We integrate with platforms that share data openly for the greater good
+| Connector | Jobs | Sync Method | Limit |
+|-----------|------|-------------|-------|
+| **Arbetsförmedlingen** | 50+ | API date filter | 500 |
+| **EURES (Adzuna)** | 1+ | API date filter | 100 |
+| **Remotive** | 100+ | Client filter | 100 |
+| **RemoteOK** | 168+ | Client filter | All |
+| **Total** | **333+** | Daily at 6 AM | - |
 
-## Features
+## 🏗️ Architecture
 
-### For Employers
-- **Free job posting**: Publish positions without fees
-- **Transparent reach**: See who's viewing and applying
-- **Community visibility**: Connect with diverse talent pools
-
-### For Job Seekers  
-- **Public job access**: Browse all listings without restrictions
-- **AI-powered matching**: Smart talent connections
-- **Open career resources**: Community-driven career advice
-
-### For Developers
-- **Open API**: Standardized interfaces for integration
-- **Plugin ecosystem**: Extend functionality with custom connectors
-- **Community collaboration**: Share improvements and innovations
-
-## Architecture
-
-### Container-Based Plugin System
-Each data source connector runs in its own container, promoting truly open data sharing:
+### Microservices Design
 ```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Main Platform │    │   Plugin Runner │    │   Plugin Runner │
-│   (OpenJobs)    │◄──▶│   (Arbetsförmed)│◄──▶│   (Adzuna)      │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-        │                       │                       │
-        ▼                       ▼                       ▼
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Plugin DB     │    │   Data Cache    │    │   Data Cache    │
-│   (Registry)    │    │   (Open API)    │    │   (Open API)    │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-```
-
-### Open API Endpoints
-```
-GET /health                  # System health check
-GET /jobs                    # Retrieve job listings
-GET /jobs/{id}               # Retrieve specific job
-POST /jobs                   # Create new job listing
-PUT /jobs/{id}               # Update job listing
-DELETE /jobs/{id}            # Remove job listing
-POST /sync/manual            # Manual job data synchronization
-GET /plugins                 # List registered plugins
-POST /plugins/register       # Register new plugin
-GET /config                  # Platform configuration
+┌─────────────────────────────────────────────────────────┐
+│                    Main API (Port 8080)                 │
+│  - REST API                                             │
+│  - Dashboard                                            │
+│  - Scheduler (Cron)                                     │
+│  - HTTP Plugin Orchestrator                             │
+└────────────┬────────────────────────────────────────────┘
+             │
+             │ HTTP POST /sync
+             │
+    ┌────────┴────────┬──────────┬──────────┐
+    │                 │          │          │
+    ▼                 ▼          ▼          ▼
+┌────────┐      ┌────────┐  ┌────────┐  ┌────────┐
+│  AF    │      │ EURES  │  │Remotive│  │RemoteOK│
+│ :8081  │      │ :8082  │  │ :8083  │  │ :8084  │
+└────┬───┘      └────┬───┘  └────┬───┘  └────┬───┘
+     │               │           │           │
+     └───────────────┴───────────┴───────────┘
+                     │
+                     ▼
+            ┌─────────────────┐
+            │  Supabase DB    │
+            │  - job_posts    │
+            │  - sync_logs    │
+            └─────────────────┘
 ```
 
-## Deployment
+## ✨ Key Features
 
-### Easypanel Deployment
-OpenJobs is designed for easy deployment on Easypanel:
+### Intelligent Incremental Sync
+- **Database-backed state**: Tracks last sync via `posted_date` in database
+- **API date filtering**: Arbetsförmedlingen & EURES use API parameters
+- **Client-side filtering**: Remotive & RemoteOK filter locally
+- **Zero duplicates**: All syncs show 0 new when no updates
 
-1. **Prerequisites**:
-   - Ubuntu server with Docker installed
-   - Easypanel dashboard access
-   - PostgreSQL database (or external service)
-
-2. **Deployment Steps**:
+### Cron-Based Scheduling
 ```bash
-# Clone repository
-git clone https://github.com/openjobs/openjobs.git
-cd openjobs
+CRON_SCHEDULE=0 6 * * *  # Daily at 6:00 AM
+```
+- Precise timing (not interval-based)
+- Configurable per environment
+- Fallback to interval mode if not set
 
-# Build Docker image
-docker build -t openjobs .
+### High Performance
+- **Arbetsförmedlingen**: 500 jobs/sync (up from 20)
+- **EURES**: 100 jobs/sync (up from 10)
+- **Remotive**: 100 jobs/sync (up from 10)
+- **RemoteOK**: All jobs (client-filtered)
 
-# Deploy to Easypanel
-# Configure container settings in Easypanel dashboard
+### Production Ready
+- Docker containerized
+- Easypanel deployment
+- Health checks on all services
+- Comprehensive logging
+
+## 📡 API Endpoints
+
+### Main API (Port 8080)
+```bash
+# Health & Status
+GET  /health                 # System health check
+GET  /                       # Dashboard UI
+
+# Jobs
+GET  /jobs                   # List all jobs
+GET  /jobs/:id               # Get specific job
+
+# Sync
+POST /sync/manual            # Trigger manual sync
+GET  /sync/history           # View sync logs
+
+# Plugins
+GET  /plugins                # List registered plugins
 ```
 
-3. **Environment Configuration**:
-```env
-SYNC_FREQUENCY=3600           # Sync interval in seconds
-PLUGIN_SYNC_ENABLED=true      # Enable automatic plugin sync
-MAX_JOBS_PER_SYNC=100         # Maximum jobs per sync cycle
-LOG_LEVEL=info                # Logging verbosity
+### Plugin Endpoints (Ports 8081-8084)
+```bash
+GET  /health                 # Plugin health check
+POST /sync                   # Trigger plugin sync
 ```
 
-## Plugin Architecture
+## 🚀 Deployment
 
-### Clean Interface Design
-OpenJobs implements a **properly decoupled plugin architecture** using Go interfaces and runtime registration:
+### Quick Start (Easypanel)
 
+**1. Deploy Main API**
+```bash
+Image: ghcr.io/magnusfroste/openjobs:latest
+Port: 8080
+```
+
+**Environment Variables:**
+```bash
+SUPABASE_URL=https://supabase.froste.eu
+SUPABASE_ANON_KEY=your-key-here
+USE_HTTP_PLUGINS=true
+CRON_SCHEDULE=0 6 * * *
+PLUGIN_ARBETSFORMEDLINGEN_URL=http://plugin-arbetsformedlingen:8081
+PLUGIN_EURES_URL=http://plugin-eures:8082
+PLUGIN_REMOTIVE_URL=http://plugin-remotive:8083
+PLUGIN_REMOTEOK_URL=http://plugin-remoteok:8084
+```
+
+**2. Deploy Each Plugin**
+
+Create 4 services with these images:
+- `ghcr.io/magnusfroste/openjobs-arbetsformedlingen:latest` (Port 8081)
+- `ghcr.io/magnusfroste/openjobs-eures:latest` (Port 8082)
+- `ghcr.io/magnusfroste/openjobs-remotive:latest` (Port 8083)
+- `ghcr.io/magnusfroste/openjobs-remoteok:latest` (Port 8084)
+
+Each needs:
+```bash
+SUPABASE_URL=https://supabase.froste.eu
+SUPABASE_ANON_KEY=your-key-here
+PORT=808X  # Respective port
+```
+
+**EURES also needs:**
+```bash
+ADZUNA_APP_ID=your-adzuna-id
+ADZUNA_APP_KEY=your-adzuna-key
+```
+
+See [EASYPANEL_ENV_SETUP.md](EASYPANEL_ENV_SETUP.md) for detailed instructions.
+
+## 🔌 Connectors
+
+### Active Connectors
+
+| Connector | Source | Type | Jobs |
+|-----------|--------|------|------|
+| **Arbetsförmedlingen** | Swedish Employment Service | Government | 50+ |
+| **EURES** | Adzuna API (European jobs) | Commercial | 1+ |
+| **Remotive** | Remotive.com | Platform | 100+ |
+| **RemoteOK** | RemoteOK.com | Platform | 168+ |
+
+### Connector Interface
+
+All connectors implement:
 ```go
-// Interface all connectors implement
 type PluginConnector interface {
     GetID() string
     GetName() string
@@ -112,153 +175,129 @@ type PluginConnector interface {
 }
 ```
 
-### Plugin System
-Connectors are registered at startup and called dynamically - **zero coupling** between core and plugins:
-- **Arbetsförmedlingen Connector**: Swedish public employment service (government open data)
-- **EURES Connector**: European Commission job mobility portal (pan-European)
-- **Remotive Connector**: Remote-first job platform
-- **RemoteOK Connector**: Large remote tech job board (99+ jobs)
-- **Custom Connectors**: Extend by implementing `PluginConnector` interface
+### Adding New Connectors
 
-**Adding New Connectors:**
-```go
-// Just register - no core code changes needed!
-registry.Register(newConnector.NewMyConnector(store))
-```
+1. Create connector in `connectors/yourname/`
+2. Implement `PluginConnector` interface
+3. Add Dockerfile
+4. Register in main scheduler
+5. Deploy as new microservice
 
-### Plugin Development
-Create plugins using the standardized interface:
-1. Implement plugin entry point
-2. Configure environment variables
-3. Define data transformation rules
-4. Register with OpenJobs platform
+See existing connectors for examples.
 
-## Automated Data Ingestion
+## 🔄 Data Sync
 
-OpenJobs automatically ingests job data from connected sources:
-
-### Scheduled Ingestion
-- **Frequency**: Every 6 hours
-- **Sources**: EURES (European job mobility portal)
-- **Process**: Automatic fetching, transformation, and storage
+### Automatic Sync
+- **Schedule**: Daily at 6:00 AM (configurable via `CRON_SCHEDULE`)
+- **Method**: HTTP POST to each plugin container
+- **Logging**: All syncs logged to `sync_logs` table
 
 ### Manual Sync
-Trigger immediate data ingestion:
 ```bash
-curl -X POST http://localhost:8080/sync/manual
+curl -X POST https://app-openjobs.katsu6.easypanel.host/sync/manual
 ```
 
-### Data Sources
-- **EURES**: European Commission job mobility portal
-- **Future**: Additional open job platforms
+### Incremental Sync Logic
 
-## Getting Started
+**API Date Filtering** (Arbetsförmedlingen, EURES):
+1. Query database for most recent job's `posted_date`
+2. Add `?published-after=YYYY-MM-DD` to API request
+3. API returns only new jobs
+
+**Client-Side Filtering** (Remotive, RemoteOK):
+1. Fetch all jobs from API
+2. Query database for most recent job's `posted_date`
+3. Filter locally to only process new jobs
+4. Skip transformation/insertion of duplicates
+
+## 🛠️ Local Development
 
 ### Prerequisites
-- Go 1.19+
-- Docker (for container deployment)
+- Go 1.21+
+- Docker & Docker Compose
+- Supabase account (or self-hosted)
 
-### Installation
+### Quick Start
+
+**1. Clone & Setup**
 ```bash
-# Clone the repository
-git clone https://github.com/openjobs/openjobs.git
+git clone https://github.com/magnusfroste/openjobs.git
 cd openjobs
-
-# Build and run
-go build -o openjobs ./cmd/openjobs
-./openjobs
-```
-
-### Database Setup
-OpenJobs uses Supabase (PostgreSQL with advanced features). Set up your database:
-
-**Option 1: Supabase Cloud (Recommended)**
-1. Create account at https://supabase.com
-2. Create new project
-3. Go to SQL Editor and run: `migrations/001_create_job_posts.sql`
-
-**Option 2: Self-hosted Supabase (Your Setup)**
-1. Access your Supabase dashboard
-2. Go to SQL Editor
-3. Run the contents of `migrations/001_create_job_posts.sql`
-
-Set the environment variables. You can either:
-
-**Option 1: Use .env file (Recommended)**
-```bash
-# Copy the sample .env file and edit with your values
 cp .env.example .env
 # Edit .env with your Supabase credentials
 ```
 
-**Option 2: Export environment variables**
-```bash
-export SUPABASE_URL="https://supabase.froste.eu"
-export SUPABASE_ANON_KEY="your-anon-key-here"
-export PORT=8080
+**2. Run Database Migrations**
+```sql
+-- In Supabase SQL Editor, run:
+migrations/001_create_job_posts.sql
+migrations/002_add_job_fields.sql
 ```
 
-### Docker Deployment
+**3. Start All Services**
 ```bash
-# Build Docker image
-docker build -t openjobs .
-
-# Run container
-docker run -p 8080:8080 -e DATABASE_URL="postgresql://..." openjobs
+docker-compose -f docker-compose.plugins.yml up
 ```
 
-## Project Structure
+This starts:
+- Main API: http://localhost:8080
+- Arbetsförmedlingen: http://localhost:8081
+- EURES: http://localhost:8082
+- Remotive: http://localhost:8083
+- RemoteOK: http://localhost:8084
+
+**4. Trigger Sync**
+```bash
+curl -X POST http://localhost:8080/sync/manual
+```
+
+## 📁 Project Structure
 
 ```
 openjobs/
-├── cmd/openjobs/          # Application entry point
+├── cmd/
+│   ├── openjobs/                 # Main API
+│   ├── plugin-arbetsformedlingen/ # AF plugin
+│   ├── plugin-eures/             # EURES plugin
+│   ├── plugin-remotive/          # Remotive plugin
+│   └── plugin-remoteok/          # RemoteOK plugin
+├── connectors/
+│   ├── arbetsformedlingen/       # AF connector logic
+│   ├── eures/                    # EURES connector logic
+│   ├── remotive/                 # Remotive connector logic
+│   └── remoteok/                 # RemoteOK connector logic
 ├── pkg/
-│   ├── models/           # Data models
-│   └── storage/          # Database operations
+│   ├── models/                   # Data models
+│   └── storage/                  # Database operations
 ├── internal/
-│   ├── api/             # HTTP handlers
-│   └── database/        # Database connection
-├── connectors/           # Plugin connectors (future)
-├── migrations/           # Database migrations
-├── docs/                 # Documentation
-├── Dockerfile            # Container definition
-├── docker-compose.yml    # Multi-service setup
-└── README.md
+│   ├── api/                      # HTTP handlers
+│   └── scheduler/                # Cron scheduler
+├── migrations/                   # Database migrations
+├── docs/                         # Documentation
+├── Dockerfile                    # Main API container
+├── docker-compose.plugins.yml    # All services
+└── EASYPANEL_ENV_SETUP.md        # Deployment guide
 ```
 
-## Community & Innovation
+## 📚 Documentation
 
-### Open Source Mission
-OpenJobs is committed to:
-- **Transparency**: All job data is publicly accessible
-- **Collaboration**: Community-driven platform development
-- **Innovation**: AI-powered talent matching systems
-- **Accessibility**: Free access for everyone
+- [QUICKSTART.md](QUICKSTART.md) - 5-minute setup guide
+- [SETUP_GUIDE.md](SETUP_GUIDE.md) - Detailed setup instructions
+- [EASYPANEL_ENV_SETUP.md](EASYPANEL_ENV_SETUP.md) - Production deployment
+- [docs/](docs/) - Architecture and API documentation
 
-### Future Vision
-- **AI Talent Matching**: Advanced algorithms for skill-persona matching
-- **Global Expansion**: Support for international job markets
-- **Skill Analytics**: Data-driven career development insights
-- **Community Platforms**: Developer and employer forums
+## 🤝 Contributing
 
-## Contributing
-
-We welcome contributions to make OpenJobs better for everyone!
-
+Contributions welcome! Please:
 1. Fork the repository
 2. Create a feature branch
-3. Commit your changes
-4. Push to the branch
-5. Create a Pull Request
+3. Make your changes
+4. Submit a pull request
 
-## License
+## 📝 License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## Support
-
-For support, please open an issue on GitHub or contact the maintainers.
+MIT License - see LICENSE file for details.
 
 ---
 
-*Powered by OpenJobs - The Open Job Listings Initiative*
+**Built with ❤️ by [@magnusfroste](https://github.com/magnusfroste)**
