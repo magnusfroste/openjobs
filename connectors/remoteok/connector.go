@@ -93,9 +93,23 @@ func (rc *RemoteOKConnector) FetchJobs() ([]models.JobPost, error) {
 		remoteOKJobs = remoteOKJobs[1:]
 	}
 
-	// Transform to our JobPost format
-	jobs := make([]models.JobPost, 0, len(remoteOKJobs))
+	// Get last sync time for incremental sync
+	lastSync := rc.getLastSyncTime()
+	
+	// Filter jobs to only new ones (posted after last sync)
+	filteredJobs := []RemoteOKJob{}
 	for _, remoteOKJob := range remoteOKJobs {
+		jobDate := rc.parseRemoteOKDate(remoteOKJob.Date)
+		if lastSync.IsZero() || jobDate.After(lastSync) {
+			filteredJobs = append(filteredJobs, remoteOKJob)
+		}
+	}
+	
+	fmt.Printf("📊 Filtered %d jobs from %d total (only new jobs)\n", len(filteredJobs), len(remoteOKJobs))
+
+	// Transform to our JobPost format
+	jobs := make([]models.JobPost, 0, len(filteredJobs))
+	for _, remoteOKJob := range filteredJobs {
 		job := rc.transformRemoteOKJob(remoteOKJob)
 		jobs = append(jobs, job)
 	}
@@ -287,4 +301,16 @@ seen[keyword] = true
 }
 
 return requirements
+}
+
+// getLastSyncTime retrieves the timestamp of the most recent job in database
+func (rc *RemoteOKConnector) getLastSyncTime() time.Time {
+	job, err := rc.store.GetMostRecentJob("remoteok-")
+	if err != nil {
+		fmt.Println("📅 No previous RemoteOK jobs found - processing all jobs")
+		return time.Time{}
+	}
+	
+	fmt.Printf("📅 Last RemoteOK job in database: %s (posted: %s)\n", job.Title, job.PostedDate.Format("2006-01-02"))
+	return job.PostedDate
 }
