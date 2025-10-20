@@ -2,6 +2,9 @@
 # Build context should be project root (/)
 FROM golang:1.23-alpine AS builder
 
+# Force cache bust - update this timestamp to force rebuild
+ARG CACHE_BUST=2025-10-20-08:37
+
 # Set working directory
 WORKDIR /app
 
