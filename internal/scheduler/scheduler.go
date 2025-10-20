@@ -158,25 +158,32 @@ func (s *Scheduler) RunManualSync() error {
 		"jooble":             os.Getenv("PLUGIN_JOOBLE_URL"),
 	}
 
-	// Default URLs for Docker Compose setup
-	if pluginURLs["arbetsformedlingen"] == "" {
-		pluginURLs["arbetsformedlingen"] = "http://localhost:8081"
+	// Default URLs for local development (Docker Compose)
+	// Only use defaults if no env vars are set AND USE_HTTP_PLUGINS is true
+	useDefaults := os.Getenv("USE_LOCALHOST_DEFAULTS") == "true"
+	
+	if useDefaults {
+		if pluginURLs["arbetsformedlingen"] == "" {
+			pluginURLs["arbetsformedlingen"] = "http://localhost:8081"
+		}
+		if pluginURLs["eures"] == "" {
+			pluginURLs["eures"] = "http://localhost:8082"
+		}
+		if pluginURLs["remotive"] == "" {
+			pluginURLs["remotive"] = "http://localhost:8083"
+		}
+		if pluginURLs["remoteok"] == "" {
+			pluginURLs["remoteok"] = "http://localhost:8084"
+		}
+		if pluginURLs["indeed-chrome"] == "" {
+			pluginURLs["indeed-chrome"] = "http://localhost:8087"
+		}
+		if pluginURLs["jooble"] == "" {
+			pluginURLs["jooble"] = "http://localhost:8088"
+		}
 	}
-	if pluginURLs["eures"] == "" {
-		pluginURLs["eures"] = "http://localhost:8082"
-	}
-	if pluginURLs["remotive"] == "" {
-		pluginURLs["remotive"] = "http://localhost:8083"
-	}
-	if pluginURLs["remoteok"] == "" {
-		pluginURLs["remoteok"] = "http://localhost:8084"
-	}
-	if pluginURLs["indeed-chrome"] == "" {
-		pluginURLs["indeed-chrome"] = "http://localhost:8087"
-	}
-	if pluginURLs["jooble"] == "" {
-		pluginURLs["jooble"] = "http://localhost:8088"
-	}
+	
+	// In production (Easypanel), only sync explicitly configured plugins
 
 	// Sync all HTTP plugins
 	pluginNames := map[string]string{
