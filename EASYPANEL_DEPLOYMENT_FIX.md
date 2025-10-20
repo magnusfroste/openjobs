@@ -1,32 +1,43 @@
-# Easypanel Deployment Fix - Arbetsförmedlingen
+# Easypanel Deployment Fix - ALL Plugins
 
 ## 🔴 Problem
 
-**Build Error:**
+**Build Error (ALL PLUGINS):**
 ```
 go: go.mod requires go >= 1.25 (running go 1.21.13; GOTOOLCHAIN=local)
 ERROR: failed to build
 ```
 
 **Impact:**
-- Arbetsförmedlingen plugin won't build
-- Pagination fix (c29f067) can't deploy
-- Still getting 0 jobs instead of 500
+- ALL plugins failing to build
+- Arbetsförmedlingen pagination fix can't deploy
+- EURES, Remotive, RemoteOK can't deploy
+- Only 3 sources working instead of 6
+- Getting 400 jobs instead of 1,450
 
 ---
 
 ## ✅ Solution Applied
 
 **Commits:**
-1. `c29f067` - Fixed API limit error (pagination)
-2. `8a4edc0` - Fixed Dockerfile Go version
+1. `c29f067` - Fixed Arbetsförmedlingen API limit (pagination)
+2. `b1fbc3e` - Fixed ALL Dockerfiles to Go 1.23
+
+**Dockerfiles Updated:**
+- ✅ Main API (`Dockerfile`)
+- ✅ Arbetsförmedlingen (`connectors/arbetsformedlingen/Dockerfile`)
+- ✅ EURES (`connectors/eures/Dockerfile`)
+- ✅ Remotive (`connectors/remotive/Dockerfile`)
+- ✅ RemoteOK (`connectors/remoteok/Dockerfile`)
+- ✅ Indeed (`connectors/indeed/Dockerfile`)
+- ✅ Indeed-scraper (`connectors/indeed-scraper/Dockerfile`)
 
 **Changes:**
 ```dockerfile
-# Before
+# Before (ALL plugins)
 FROM golang:1.21-alpine AS builder
 
-# After  
+# After (ALL plugins)
 FROM golang:1.23-alpine AS builder
 ```
 
@@ -34,13 +45,22 @@ FROM golang:1.23-alpine AS builder
 
 ## 🚀 Deploy to Easypanel
 
-### **Step 1: Trigger Rebuild**
+### **Step 1: Rebuild ALL Containers**
 
-In Easypanel:
-1. Go to **arbetsformedlingen** container
-2. Click **"Rebuild"** or **"Redeploy"**
-3. Easypanel will pull latest code from GitHub
-4. Build will now succeed with Go 1.23
+**In Easypanel, rebuild these containers:**
+
+1. **openjobs** (main API)
+2. **openjobs-arbetsformedlingen** ⭐ (has pagination fix)
+3. **openjobs-eures** ⭐ (was failing)
+4. **openjobs-remotive** ⭐ (was failing)
+5. **openjobs-remoteok** ⭐ (was failing)
+6. **openjobs-indeed-chrome** (should already work)
+7. **openjobs-jooble** (should already work)
+
+**How to rebuild:**
+- Click each container → "Rebuild" button
+- Easypanel pulls latest code from GitHub
+- Build will now succeed with Go 1.23
 
 ### **Step 2: Monitor Build**
 
