@@ -144,73 +144,98 @@ func NewArbetsformedlingenConnector(store *storage.JobStore) *Arbetsformedlingen
 	}
 }
 
-// FetchJobs fetches job listings from Arbetsförmedlingen
+// FetchJobs fetches jobs from Arbetsförmedlingen JobSearch API with pagination
 func (ac *ArbetsformedlingenConnector) FetchJobs() ([]models.JobPost, error) {
-	// Arbetsförmedlingen JobSearch API endpoint (full data with skills)
-	url := fmt.Sprintf("%s/search", ac.baseURL)
-
-	// Create request with parameters for recent IT jobs
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
-
-	// Add headers
-	req.Header.Set("User-Agent", ac.userAgent)
-	req.Header.Set("Accept", "application/json")
-
+	allJobs := make([]models.JobPost, 0)
+	
 	// Get last sync time for incremental sync
 	lastSync := ac.getLastSyncTime()
 	
-	// Add query parameters
-	q := req.URL.Query()
-	q.Add("q", "utvecklare OR programmer OR software") // Search for developer/programmer jobs
-	q.Add("limit", "500")                             // ⭐ Increased from 20 to 500
-	q.Add("sort", "pubdate-desc")                      // Sort by publication date descending
+	// Fetch multiple pages (API limit is 100 per request)
+	// Fetch 5 pages = 500 jobs total
+	maxPages := 5
+	limit := 100 // API maximum
 	
-	// ⭐ Add timestamp filter for incremental sync
-	if !lastSync.IsZero() {
-		// Format: 2025-10-19 (Arbetsförmedlingen API uses this format)
-		publishedAfter := lastSync.Format("2006-01-02")
-		q.Add("published-after", publishedAfter)
-		fmt.Printf("📅 Fetching jobs published after: %s\n", publishedAfter)
-	}
-	
-	req.URL.RawQuery = q.Encode()
+	for page := 0; page < maxPages; page++ {
+		offset := page * limit
+		
+		fmt.Printf("📄 Fetching page %d/%d (offset: %d, limit: %d)\n", page+1, maxPages, offset, limit)
+		
+		url := fmt.Sprintf("%s/search", ac.baseURL)
+		req, err := http.NewRequest("GET", url, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create request: %w", err)
+		}
 
-	// Make the request
-	client := &http.Client{Timeout: 30 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch jobs: %w", err)
-	}
-	defer resp.Body.Close()
+		// Add headers
+		req.Header.Set("User-Agent", ac.userAgent)
+		req.Header.Set("Accept", "application/json")
+		
+		// Add query parameters
+		q := req.URL.Query()
+		q.Add("q", "utvecklare OR programmer OR software") // Search for developer/programmer jobs
+		q.Add("limit", strconv.Itoa(limit))                // API maximum: 100
+		q.Add("offset", strconv.Itoa(offset))              // Pagination offset
+		q.Add("sort", "pubdate-desc")                      // Sort by publication date descending
+		
+		// Add timestamp filter for incremental sync
+		if !lastSync.IsZero() {
+			publishedAfter := lastSync.Format("2006-01-02")
+			q.Add("published-after", publishedAfter)
+			if page == 0 {
+				fmt.Printf("📅 Fetching jobs published after: %s\n", publishedAfter)
+			}
+		}
+		
+		req.URL.RawQuery = q.Encode()
 
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("Arbetsförmedlingen API error %d: %s", resp.StatusCode, string(body))
+		// Make the request
+		client := &http.Client{Timeout: 30 * time.Second}
+		resp, err := client.Do(req)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch jobs: %w", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			body, _ := io.ReadAll(resp.Body)
+			return nil, fmt.Errorf("Arbetsförmedlingen API error %d: %s", resp.StatusCode, string(body))
+		}
+
+		// Parse response
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read response: %w", err)
+		}
+
+		var afResponse AFResponse
+		err = json.Unmarshal(body, &afResponse)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse response: %w", err)
+		}
+
+		// Transform to our JobPost format
+		for _, afJob := range afResponse.Hits {
+			job := ac.transformAFJob(afJob)
+			allJobs = append(allJobs, job)
+		}
+		
+		fmt.Printf("✅ Page %d: fetched %d jobs (total so far: %d)\n", page+1, len(afResponse.Hits), len(allJobs))
+		
+		// If we got fewer jobs than the limit, we've reached the end
+		if len(afResponse.Hits) < limit {
+			fmt.Printf("📊 Reached end of results at page %d\n", page+1)
+			break
+		}
+		
+		// Rate limiting: wait 1 second between requests
+		if page < maxPages-1 {
+			time.Sleep(1 * time.Second)
+		}
 	}
 
-	// Parse response
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response: %w", err)
-	}
-
-	var afResponse AFResponse
-	err = json.Unmarshal(body, &afResponse)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse response: %w", err)
-	}
-
-	// Transform to our JobPost format
-	jobs := make([]models.JobPost, 0, len(afResponse.Hits))
-	for _, afJob := range afResponse.Hits {
-		job := ac.transformAFJob(afJob)
-		jobs = append(jobs, job)
-	}
-
-	return jobs, nil
+	fmt.Printf("🎯 Total jobs fetched from Arbetsförmedlingen: %d\n", len(allJobs))
+	return allJobs, nil
 }
 
 // transformAFJob converts Arbetsförmedlingen job format to our JobPost format
