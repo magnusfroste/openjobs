@@ -143,9 +143,9 @@ func (s *Server) DashboardHandler(w http.ResponseWriter, r *http.Request) {
         .plugin-card {
             border: 1px solid var(--border-color);
             border-radius: 8px;
-            padding: 1rem;
+            padding: 1.25rem;
             transition: border-color 0.3s ease;
-            margin-bottom: 0.75rem;
+            margin-bottom: 1.25rem;
         }
         .plugin-name {
             font-weight: 600;
