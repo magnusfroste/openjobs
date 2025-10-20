@@ -152,7 +152,7 @@ func (s *Server) DashboardHandler(w http.ResponseWriter, r *http.Request) {
             color: var(--text-primary);
         }
         .status-badge {
-            padding: 0.25rem 0.75rem;
+            padding: 0.5rem 0.75rem;
             border-radius: 12px;
             font-size: 0.75rem;
             font-weight: 600;
