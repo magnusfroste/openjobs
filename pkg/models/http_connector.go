@@ -31,7 +31,7 @@ func NewHTTPPluginConnector(id, name, url string) *HTTPPluginConnector {
 		pluginID:   id,
 		pluginName: name,
 		baseURL:    strings.TrimSuffix(url, "/"),
-		httpClient: &http.Client{Timeout: 30 * time.Second},
+		httpClient: &http.Client{Timeout: 6 * time.Minute}, // 6 minutes for Chrome scraping
 	}
 }
 
