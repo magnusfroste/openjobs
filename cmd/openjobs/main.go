@@ -10,6 +10,7 @@ import (
 
 	"openjobs/internal/api"
 	"openjobs/internal/database"
+	"openjobs/internal/middleware"
 	"openjobs/internal/scheduler"
 	"openjobs/pkg/models"
 	"openjobs/pkg/storage"
@@ -212,14 +213,14 @@ func main() {
 	server := api.NewServer(jobStore, jobScheduler)
 	fmt.Printf("✅ API server created: %v\n", server != nil)
 
-	// Set up HTTP routes
-	http.HandleFunc("/health", healthCheck)
-	http.HandleFunc("/plugins/register", registerPlugin)
-	http.HandleFunc("/plugins", getAllPlugins)
+	// Set up HTTP routes with CORS
+	http.HandleFunc("/health", middleware.CORS(healthCheck))
+	http.HandleFunc("/plugins/register", middleware.CORS(registerPlugin))
+	http.HandleFunc("/plugins", middleware.CORS(getAllPlugins))
 
 	// Sync routes (must come before /jobs/ to avoid conflicts)
 	fmt.Println("📝 Registering route: /sync/manual")
-	http.HandleFunc("/sync/manual", createSyncHandler(server))
+	http.HandleFunc("/sync/manual", middleware.CORS(createSyncHandler(server)))
 
 	// Job routes
 	http.HandleFunc("/jobs", func(w http.ResponseWriter, r *http.Request) {
@@ -263,19 +264,19 @@ func main() {
 
 	// Analytics route via helper function
 	fmt.Println("📝 Registering route: /analytics")
-	http.HandleFunc("/analytics", createAnalyticsHandler(server))
+	http.HandleFunc("/analytics", middleware.CORS(createAnalyticsHandler(server)))
 
 	// Sync logs route
 	fmt.Println("📝 Registering route: /sync/logs")
-	http.HandleFunc("/sync/logs", server.SyncLogsHandler)
+	http.HandleFunc("/sync/logs", middleware.CORS(server.SyncLogsHandler))
 
 	// Plugin status route
 	fmt.Println("📝 Registering route: /plugins/status")
-	http.HandleFunc("/plugins/status", server.PluginStatusHandler)
+	http.HandleFunc("/plugins/status", middleware.CORS(server.PluginStatusHandler))
 
 	// Platform metrics route (for enhanced dashboard)
 	fmt.Println("📝 Registering route: /platform/metrics")
-	http.HandleFunc("/platform/metrics", server.PlatformMetricsHandler)
+	http.HandleFunc("/platform/metrics", middleware.CORS(server.PlatformMetricsHandler))
 
 	// Start server
 	port := os.Getenv("PORT")
