@@ -95,7 +95,7 @@ func (jc *JoobleConnector) FetchJobs() ([]models.JobPost, error) {
 	for _, query := range queries {
 		fmt.Printf("🔍 Fetching Jooble jobs for: '%s'\n", query)
 
-		jobs, err := jc.searchJobs(query, "Sverige")
+		jobs, err := jc.searchJobs(query, "Stockholm")
 		if err != nil {
 			fmt.Printf("⚠️  Error fetching jobs for '%s': %v\n", query, err)
 			continue
