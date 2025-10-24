@@ -79,19 +79,35 @@ func (ec *EURESConnector) FetchJobs() ([]models.JobPost, error) {
 		return ec.fetchDemoJobs(), nil
 	}
 
-	// Fetch real jobs from Netherlands first (test single country)
-	countryJobs, err := ec.fetchJobsFromCountry("nl")
-	if err != nil {
-		fmt.Printf("⚠️  Error fetching jobs from Sweden: %v\n", err)
+	// Fetch from multiple European countries
+	countries := []string{
+		"se", // Sweden
+		"de", // Germany
+		"nl", // Netherlands
+		"dk", // Denmark
+		"no", // Norway
+	}
+
+	allJobs := []models.JobPost{}
+	for _, country := range countries {
+		countryJobs, err := ec.fetchJobsFromCountry(country)
+		if err != nil {
+			fmt.Printf("⚠️  Error fetching jobs from %s: %v\n", country, err)
+			continue // Try next country
+		}
+		allJobs = append(allJobs, countryJobs...)
+		fmt.Printf("   ✅ Fetched %d jobs from %s\n", len(countryJobs), country)
+		
+		// Rate limiting between countries
+		time.Sleep(1 * time.Second)
+	}
+
+	if len(allJobs) == 0 {
+		fmt.Println("⚠️  No jobs fetched from any country, using demo data")
 		return ec.fetchDemoJobs(), nil
 	}
 
-	if len(countryJobs) == 0 {
-		fmt.Println("⚠️  No jobs fetched from Sweden, using demo data")
-		return ec.fetchDemoJobs(), nil
-	}
-
-	return countryJobs, nil
+	return allJobs, nil
 }
 
 // fetchJobsFromCountry fetches jobs from a specific country
