@@ -48,7 +48,7 @@ type JoobleJob struct {
 	Link        string `json:"link"`
 	Company     string `json:"company"`
 	Updated     string `json:"updated"`
-	ID          string `json:"id"`
+	ID          int64  `json:"id"` // Changed from string to int64 - Jooble API returns numeric IDs
 }
 
 // GetID returns the connector ID
@@ -175,9 +175,11 @@ func (jc *JoobleConnector) searchJobs(keywords, location string) ([]models.JobPo
 
 // transformJoobleJob converts Jooble job format to JobPost
 func (jc *JoobleConnector) transformJoobleJob(jj JoobleJob) models.JobPost {
-	// Generate unique ID
-	jobID := jj.ID
-	if jobID == "" {
+	// Generate unique ID from numeric ID or fallback to link hash
+	var jobID string
+	if jj.ID != 0 {
+		jobID = fmt.Sprintf("%d", jj.ID)
+	} else {
 		// Fallback: hash of link
 		jobID = jc.generateJobID(jj.Link)
 	}
