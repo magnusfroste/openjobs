@@ -82,6 +82,9 @@ func (jc *JoobleConnector) FetchJobs() ([]models.JobPost, error) {
 		return jc.getDemoJobs(), nil
 	}
 
+	// Get last sync time for incremental sync
+	lastSync := jc.getLastSyncTime()
+
 	// Search queries for diverse coverage
 	queries := []string{
 		"developer",
@@ -106,6 +109,12 @@ func (jc *JoobleConnector) FetchJobs() ([]models.JobPost, error) {
 
 		// Rate limiting - be respectful
 		time.Sleep(2 * time.Second)
+	}
+
+	// Filter by date if we have a last sync time (client-side filtering)
+	if !lastSync.IsZero() {
+		allJobs = jc.filterJobsByDate(allJobs, lastSync)
+		fmt.Printf("📅 Filtered to %d jobs posted after %s\n", len(allJobs), lastSync.Format("2006-01-02"))
 	}
 
 	// Deduplicate by ID
