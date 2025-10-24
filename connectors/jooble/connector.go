@@ -306,6 +306,31 @@ func (jc *JoobleConnector) cleanText(text string) string {
 	return text
 }
 
+// getLastSyncTime retrieves the timestamp of the most recent job in database
+func (jc *JoobleConnector) getLastSyncTime() time.Time {
+	job, err := jc.store.GetMostRecentJob("jooble-")
+	if err != nil {
+		fmt.Println(" No previous Jooble jobs found - fetching all jobs")
+		return time.Time{}
+	}
+	
+	fmt.Printf(" Last Jooble job in database: %s (posted: %s)\n", job.Title, job.PostedDate.Format("2006-01-02"))
+	return job.PostedDate
+}
+
+// filterJobsByDate filters jobs to only include those posted after the given date
+func (jc *JoobleConnector) filterJobsByDate(jobs []models.JobPost, afterDate time.Time) []models.JobPost {
+	filtered := make([]models.JobPost, 0, len(jobs))
+	
+	for _, job := range jobs {
+		if job.PostedDate.After(afterDate) || job.PostedDate.Equal(afterDate) {
+			filtered = append(filtered, job)
+		}
+	}
+	
+	return filtered
+}
+
 // formatLocation formats location string
 func (jc *JoobleConnector) formatLocation(location string) string {
 	location = strings.TrimSpace(location)
