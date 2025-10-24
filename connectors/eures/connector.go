@@ -479,7 +479,7 @@ func (ec *EURESConnector) extractRequirementsFromText(title, description string)
 
 // getLastSyncTime retrieves the timestamp of the most recent job in database
 func (ec *EURESConnector) getLastSyncTime() time.Time {
-	job, err := ec.store.GetMostRecentJob("eures-")
+	job, err := ec.store.GetMostRecentJob("adzuna-")
 	if err != nil {
 		fmt.Println("📅 No previous EURES jobs found - fetching all jobs")
 		return time.Time{}
