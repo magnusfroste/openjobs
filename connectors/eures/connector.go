@@ -80,12 +80,19 @@ func (ec *EURESConnector) FetchJobs() ([]models.JobPost, error) {
 	}
 
 	// Fetch from multiple European countries
+	// Note: Adzuna API only supports specific countries
+	// Supported: at, au, be, br, ca, ch, de, es, fr, gb, in, it, mx, nl, nz, pl, sg, us, za
 	countries := []string{
-		"se", // Sweden
 		"de", // Germany
 		"nl", // Netherlands
-		"dk", // Denmark
-		"no", // Norway
+		"at", // Austria
+		"ch", // Switzerland
+		"be", // Belgium
+		"fr", // France
+		"es", // Spain
+		"it", // Italy
+		"pl", // Poland
+		"gb", // United Kingdom
 	}
 
 	allJobs := []models.JobPost{}

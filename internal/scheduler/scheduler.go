@@ -105,9 +105,10 @@ func (s *Scheduler) startCronScheduler() {
 	fmt.Printf("   '0 6 * * *'   - Every day at 6:00 AM\n")
 	fmt.Printf("   '0 */6 * * *' - Every 6 hours\n")
 	fmt.Printf("   '0 0 * * *'   - Every day at midnight\n\n")
+	fmt.Printf("⏰ Next sync will run at the scheduled time (not immediately on startup)\n\n")
 	
-	// Run immediately on start
-	go s.runSync()
+	// Don't run immediately on start - wait for cron schedule
+	// If you need to trigger manually, use: POST /sync/manual
 }
 
 // Stop halts the scheduled job ingestion
