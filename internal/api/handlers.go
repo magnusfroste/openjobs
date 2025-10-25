@@ -30,6 +30,9 @@ func NewServer(jobStore *storage.JobStore, scheduler *scheduler.Scheduler) *Serv
 }
 
 // DashboardHandler serves the professional analytics dashboard
+// DEPRECATED: Dashboard moved to OpenJobs_Web (https://openjobs-web.vercel.app)
+// This handler is kept for backward compatibility but is no longer used
+// TODO: Remove in future version after confirming no dependencies
 func (s *Server) DashboardHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html")
 
@@ -480,6 +483,9 @@ func (s *Server) DashboardHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // DashboardHandlerAlternative serves the analytics dashboard as a fallback
+// DEPRECATED: Dashboard moved to OpenJobs_Web (https://openjobs-web.vercel.app)
+// This handler is kept for backward compatibility but is no longer used
+// TODO: Remove in future version after confirming no dependencies
 func (s *Server) DashboardHandlerAlternative(w http.ResponseWriter, r *http.Request) {
 	s.DashboardHandler(w, r)
 }

@@ -248,19 +248,29 @@ func main() {
 		}
 	})
 
-	// Root redirect to dashboard
-	fmt.Println("📝 Registering route: / (redirect to /dashboard)")
+	// Root API info (dashboard moved to OpenJobs_Web)
+	fmt.Println("📝 Registering route: / (API info)")
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/" {
-			http.Redirect(w, r, "/dashboard", http.StatusFound)
+		if r.URL.Path != "/" {
+			http.NotFound(w, r)
 			return
 		}
-		http.NotFound(w, r)
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"service": "OpenJobs API",
+			"version": "1.0.0",
+			"status":  "running",
+			"dashboard": "https://openjobs-web.vercel.app",
+			"endpoints": map[string]string{
+				"jobs":            "/api/jobs",
+				"analytics":       "/analytics",
+				"platform_metrics": "/platform/metrics",
+				"plugin_status":   "/plugins/status",
+				"manual_sync":     "/sync/manual (POST)",
+				"health":          "/health",
+			},
+		})
 	})
-
-	// Dashboard route (use this one)
-	fmt.Println("📝 Registering route: /dashboard")
-	http.HandleFunc("/dashboard", server.DashboardHandler)
 
 	// Analytics route via helper function
 	fmt.Println("📝 Registering route: /analytics")
@@ -285,7 +295,8 @@ func main() {
 	}
 
 	fmt.Printf("OpenJobs API starting on port %s\n", port)
-	fmt.Printf("🌟 Dashboard available at: http://localhost:%s/dashboard\n", port)
+	fmt.Printf("🌟 API info available at: http://localhost:%s/\n", port)
+	fmt.Println("📊 Dashboard available at: https://openjobs-web.vercel.app")
 
 	fmt.Printf("🚀 Server starting... Press Ctrl+C to stop\n")
 	log.Fatal(http.ListenAndServe(":"+port, nil))
