@@ -2,6 +2,7 @@
 
 **Microservices-based job aggregation platform with intelligent incremental sync**
 
+
 OpenJobs aggregates job listings from multiple sources into a unified API, featuring:
 - 🔄 **Incremental Sync** - Only fetch new jobs, avoid duplicates
 - 🐳 **Microservices Architecture** - Each connector runs independently
