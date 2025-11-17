@@ -18,6 +18,7 @@ type JobPost struct {
 	SalaryMax       *int                   `json:"salary_max,omitempty" db:"salary_max"`
 	SalaryCurrency  string                 `json:"salary_currency,omitempty" db:"salary_currency"`
 	IsRemote        bool                   `json:"is_remote" db:"is_remote"`
+	IsActive        bool                   `json:"is_active" db:"is_active"`
 	URL             string                 `json:"url,omitempty" db:"url"`
 	EmploymentType  string                 `json:"employment_type" db:"employment_type"`
 	ExperienceLevel string                 `json:"experience_level" db:"experience_level"`

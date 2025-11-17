@@ -110,7 +110,7 @@ func (js *JobStore) GetJob(id string) (*models.JobPost, error) {
 
 // GetAllJobs retrieves all jobs with optional filtering from Supabase
 func (js *JobStore) GetAllJobs(limit, offset int) ([]*models.JobPost, error) {
-	url := fmt.Sprintf("%s/rest/v1/job_posts?select=*&order=posted_date.desc&limit=%d&offset=%d", js.supabaseURL, limit, offset)
+	url := fmt.Sprintf("%s/rest/v1/job_posts?select=*&is_active=eq.true&order=posted_date.desc&limit=%d&offset=%d", js.supabaseURL, limit, offset)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
@@ -351,9 +351,9 @@ func (js *JobStore) GetRemoteJobCount() (int, error) {
 // Used for incremental sync - finds the last job posted to determine where to continue
 func (js *JobStore) GetMostRecentJob(idPrefix string) (*models.JobPost, error) {
 	// Query for most recent job with matching ID prefix, ordered by posted_date
-	url := fmt.Sprintf("%s/rest/v1/job_posts?select=*&id=like.%s*&order=posted_date.desc&limit=1", 
+	url := fmt.Sprintf("%s/rest/v1/job_posts?select=*&id=like.%s*&order=posted_date.desc&limit=1",
 		js.supabaseURL, idPrefix)
-	
+
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
