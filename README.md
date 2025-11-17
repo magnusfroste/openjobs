@@ -102,6 +102,72 @@ GET  /sync/history           # View sync logs
 GET  /plugins                # List registered plugins
 ```
 
+### Jobs API - Query Parameters
+
+**GET /jobs**
+
+Returns a list of job postings with optional filtering.
+
+**Query Parameters:**
+
+| Parameter | Type | Description | Example |
+|-----------|------|-------------|---------|
+| `limit` | integer | Number of jobs to return (default: 20, max: 500) | `?limit=100` |
+| `offset` | integer | Number of jobs to skip for pagination (default: 0) | `?offset=20` |
+| `is_active` | boolean | Filter by active status (default: all) | `?is_active=true` |
+| `created_after` | ISO 8601 | Return jobs created after this timestamp | `?created_after=2025-11-17T06:00:00Z` |
+
+**Examples:**
+
+```bash
+# Get first 100 active jobs
+GET /jobs?is_active=true&limit=100
+
+# Get jobs created in the last 24 hours
+GET /jobs?created_after=2025-11-16T15:00:00Z&is_active=true
+
+# Incremental sync - get only new jobs since last check
+GET /jobs?created_after=2025-11-17T06:00:00Z&is_active=true&limit=500
+
+# Pagination - get next page
+GET /jobs?is_active=true&limit=100&offset=100
+```
+
+**Response Format:**
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "af-12345",
+      "title": "Senior Developer",
+      "company": "Tech AB",
+      "description": "Job description...",
+      "location": "Stockholm",
+      "salary_min": 50000,
+      "salary_max": 70000,
+      "salary_currency": "SEK",
+      "is_remote": false,
+      "is_active": true,
+      "url": "https://...",
+      "posted_date": "2025-11-15T10:00:00Z",
+      "created_at": "2025-11-17T06:15:23Z",
+      "updated_at": "2025-11-17T06:15:23Z",
+      "requirements": ["Python", "React"],
+      "benefits": ["Remote work", "Health insurance"]
+    }
+  ]
+}
+```
+
+**Key Fields:**
+
+- `posted_date`: When the employer originally posted the job
+- `created_at`: When OpenJobs added the job to the database (use for incremental sync)
+- `updated_at`: When the job was last modified in OpenJobs
+- `is_active`: Whether the job is currently active (not expired)
+
 ### Plugin Endpoints (Ports 8081-8084)
 ```bash
 GET  /health                 # Plugin health check
