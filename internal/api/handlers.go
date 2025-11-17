@@ -506,7 +506,7 @@ func (s *Server) AnalyticsHandler(w http.ResponseWriter, r *http.Request) {
 	if totalJobs > 0 {
 		remotePercentage = (remoteJobs * 100) / totalJobs
 	}
-	
+
 	// Get last sync time from sync logs
 	lastSyncTime := "2025-10-15T23:26:17Z" // Fallback
 	logs, err := s.jobStore.GetRecentSyncLogs(1)
@@ -637,6 +637,7 @@ func (s *Server) GetAllJobs(w http.ResponseWriter, r *http.Request) {
 	// Parse query parameters
 	limit := 20 // default
 	offset := 0
+	createdAfter := r.URL.Query().Get("created_after")
 
 	if l := r.URL.Query().Get("limit"); l != "" {
 		if parsed, err := strconv.Atoi(l); err == nil && parsed > 0 {
@@ -650,7 +651,15 @@ func (s *Server) GetAllJobs(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	jobs, err := s.jobStore.GetAllJobs(limit, offset)
+	// Support incremental sync via created_after parameter
+	var jobs []*models.JobPost
+	var err error
+	if createdAfter != "" {
+		jobs, err = s.jobStore.GetJobsAfter(createdAfter, limit, offset)
+	} else {
+		jobs, err = s.jobStore.GetAllJobs(limit, offset)
+	}
+
 	if err != nil {
 		http.Error(w, `{"success": false, "message": "Failed to retrieve jobs"}`, http.StatusInternalServerError)
 		return
@@ -849,7 +858,7 @@ func (s *Server) PluginStatusHandler(w http.ResponseWriter, r *http.Request) {
 			baseURL = fmt.Sprintf("http://localhost:%d", port)
 		}
 		healthURL := fmt.Sprintf("%s/health", baseURL)
-		
+
 		resp, err := http.Get(healthURL)
 		status := "unhealthy"
 		if err == nil && resp.StatusCode == 200 {

@@ -144,6 +144,45 @@ func (js *JobStore) GetAllJobs(limit, offset int) ([]*models.JobPost, error) {
 	return jobs, nil
 }
 
+// GetJobsAfter retrieves jobs created after a specific timestamp (for incremental sync)
+func (js *JobStore) GetJobsAfter(timestamp string, limit, offset int) ([]*models.JobPost, error) {
+	// Use created_at for incremental sync - this is when OpenJobs added the job to database
+	// NOT posted_date which is when the employer originally posted it (can be old)
+	url := fmt.Sprintf("%s/rest/v1/job_posts?select=*&is_active=eq.true&created_at=gte.%s&order=created_at.desc&limit=%d&offset=%d",
+		js.supabaseURL, timestamp, limit, offset)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", js.supabaseKey))
+	req.Header.Set("apikey", js.supabaseKey)
+
+	resp, err := js.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("supabase error %d: %s", resp.StatusCode, string(body))
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response: %w", err)
+	}
+
+	var jobs []*models.JobPost
+	err = json.Unmarshal(body, &jobs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
+	}
+
+	return jobs, nil
+}
+
 // UpdateJob updates an existing job in Supabase
 func (js *JobStore) UpdateJob(job *models.JobPost) error {
 	jobJSON, err := json.Marshal(job)
@@ -343,15 +382,13 @@ func (js *JobStore) GetRemoteJobCount() (int, error) {
 	if err != nil {
 		return 0, fmt.Errorf("failed to parse total count: %w", err)
 	}
-
-	return total, nil
 }
 
 // GetMostRecentJob retrieves the most recent job for a given connector (by ID prefix)
 // Used for incremental sync - finds the last job posted to determine where to continue
 func (js *JobStore) GetMostRecentJob(idPrefix string) (*models.JobPost, error) {
-	// Query for most recent job with matching ID prefix, ordered by posted_date
-	url := fmt.Sprintf("%s/rest/v1/job_posts?select=*&id=like.%s*&order=posted_date.desc&limit=1",
+	// Query for most recent job with matching ID prefix, ordered by created_at
+	url := fmt.Sprintf("%s/rest/v1/job_posts?select=*&id=like.%s*&order=created_at.desc&limit=1",
 		js.supabaseURL, idPrefix)
 
 	req, err := http.NewRequest("GET", url, nil)
