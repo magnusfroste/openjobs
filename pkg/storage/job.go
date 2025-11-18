@@ -303,9 +303,9 @@ func (js *JobStore) GetRecentSyncLogs(limit int) ([]models.SyncLog, error) {
 	return logs, nil
 }
 
-// GetTotalJobCount returns the total number of jobs in the database
+// GetTotalJobCount returns the total number of active jobs in the database
 func (js *JobStore) GetTotalJobCount() (int, error) {
-	url := fmt.Sprintf("%s/rest/v1/job_posts?select=count", js.supabaseURL)
+	url := fmt.Sprintf("%s/rest/v1/job_posts?select=count&is_active=eq.true", js.supabaseURL)
 	req, err := http.NewRequest("HEAD", url, nil)
 	if err != nil {
 		return 0, fmt.Errorf("failed to create request: %w", err)
@@ -345,9 +345,9 @@ func (js *JobStore) GetTotalJobCount() (int, error) {
 	return total, nil
 }
 
-// GetRemoteJobCount returns the number of remote jobs in the database
+// GetRemoteJobCount returns the number of active remote jobs in the database
 func (js *JobStore) GetRemoteJobCount() (int, error) {
-	url := fmt.Sprintf("%s/rest/v1/job_posts?select=count&is_remote=eq.true", js.supabaseURL)
+	url := fmt.Sprintf("%s/rest/v1/job_posts?select=count&is_active=eq.true&is_remote=eq.true", js.supabaseURL)
 	req, err := http.NewRequest("HEAD", url, nil)
 	if err != nil {
 		return 0, fmt.Errorf("failed to create request: %w", err)
@@ -382,6 +382,8 @@ func (js *JobStore) GetRemoteJobCount() (int, error) {
 	if err != nil {
 		return 0, fmt.Errorf("failed to parse total count: %w", err)
 	}
+
+	return total, nil
 }
 
 // GetMostRecentJob retrieves the most recent job for a given connector (by ID prefix)
