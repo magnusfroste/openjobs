@@ -228,7 +228,8 @@ func main() {
 		case http.MethodGet:
 			server.GetAllJobs(w, r)
 		case http.MethodPost:
-			server.CreateJob(w, r)
+			// POST requires API key validation
+			server.ValidateAPIKey(server.CreateJob)(w, r)
 		default:
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		}
@@ -257,17 +258,17 @@ func main() {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]interface{}{
-			"service": "OpenJobs API",
-			"version": "1.0.0",
-			"status":  "running",
+			"service":   "OpenJobs API",
+			"version":   "1.0.0",
+			"status":    "running",
 			"dashboard": "https://openjobs-web.vercel.app",
 			"endpoints": map[string]string{
-				"jobs":            "/api/jobs",
-				"analytics":       "/analytics",
+				"jobs":             "/api/jobs",
+				"analytics":        "/analytics",
 				"platform_metrics": "/platform/metrics",
-				"plugin_status":   "/plugins/status",
-				"manual_sync":     "/sync/manual (POST)",
-				"health":          "/health",
+				"plugin_status":    "/plugins/status",
+				"manual_sync":      "/sync/manual (POST)",
+				"health":           "/health",
 			},
 		})
 	})

@@ -595,7 +595,51 @@ func (s *Server) AnalyticsHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
-// CreateJob handles POST /jobs
+// ValidateAPIKey middleware validates the X-API-Key header against companies table
+func (s *Server) ValidateAPIKey(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		apiKey := r.Header.Get("X-API-Key")
+		if apiKey == "" {
+			http.Error(w, `{"success": false, "message": "Missing X-API-Key header"}`, http.StatusUnauthorized)
+			return
+		}
+
+		// Validate API key against Supabase companies table
+		supabaseURL := os.Getenv("SUPABASE_URL")
+		supabaseKey := os.Getenv("SUPABASE_ANON_KEY")
+
+		url := fmt.Sprintf("%s/rest/v1/companies?api_key=eq.%s&select=id,name,email", supabaseURL, apiKey)
+		req, err := http.NewRequest("GET", url, nil)
+		if err != nil {
+			http.Error(w, `{"success": false, "message": "Internal error"}`, http.StatusInternalServerError)
+			return
+		}
+
+		req.Header.Set("apikey", supabaseKey)
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", supabaseKey))
+
+		client := &http.Client{Timeout: 10 * time.Second}
+		resp, err := client.Do(req)
+		if err != nil {
+			http.Error(w, `{"success": false, "message": "Failed to validate API key"}`, http.StatusInternalServerError)
+			return
+		}
+		defer resp.Body.Close()
+
+		var companies []map[string]interface{}
+		if err := json.NewDecoder(resp.Body).Decode(&companies); err != nil || len(companies) == 0 {
+			http.Error(w, `{"success": false, "message": "Invalid API key"}`, http.StatusUnauthorized)
+			return
+		}
+
+		// API key is valid, proceed to next handler
+		next(w, r)
+	}
+}
+
+// CreateJob handles POST /jobs with API key validation
 func (s *Server) CreateJob(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
@@ -605,15 +649,41 @@ func (s *Server) CreateJob(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Generate ID if not provided
-	if job.ID == "" {
-		job.ID = uuid.New().String()
+	// Validate required fields
+	if job.Title == "" {
+		http.Error(w, `{"success": false, "message": "Title is required"}`, http.StatusBadRequest)
+		return
+	}
+	if job.Company == "" {
+		http.Error(w, `{"success": false, "message": "Company is required"}`, http.StatusBadRequest)
+		return
+	}
+	if job.Description == "" {
+		http.Error(w, `{"success": false, "message": "Description is required"}`, http.StatusBadRequest)
+		return
 	}
 
-	// Set posted date if not provided
-	if job.PostedDate.IsZero() {
-		job.PostedDate = time.Now()
+	// Generate ID if not provided
+	if job.ID == "" {
+		job.ID = fmt.Sprintf("web-%s", uuid.New().String())
 	}
+
+	// Set timestamps
+	now := time.Now()
+	if job.PostedDate.IsZero() {
+		job.PostedDate = now
+	}
+
+	// Set default values
+	job.IsActive = true // Jobs posted via API are active by default
+
+	// Initialize fields map if nil
+	if job.Fields == nil {
+		job.Fields = make(map[string]interface{})
+	}
+	job.Fields["source"] = "web-form"
+	job.Fields["api_posted"] = true
+	job.Fields["posted_at"] = now.Format(time.RFC3339)
 
 	if err := s.jobStore.CreateJob(&job); err != nil {
 		http.Error(w, `{"success": false, "message": "Failed to create job"}`, http.StatusInternalServerError)
