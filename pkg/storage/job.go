@@ -446,6 +446,42 @@ func (js *JobStore) GetRemoteJobCount() (int, error) {
 	return total, nil
 }
 
+// GetAnalyticsBySource retrieves analytics data grouped by source
+func (js *JobStore) GetAnalyticsBySource() ([]map[string]interface{}, error) {
+	url := fmt.Sprintf("%s/rest/v1/job_analytics?select=*&order=total_jobs.desc", js.supabaseURL)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", js.supabaseKey))
+	req.Header.Set("apikey", js.supabaseKey)
+
+	resp, err := js.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("supabase error %d: %s", resp.StatusCode, string(body))
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response: %w", err)
+	}
+
+	var analytics []map[string]interface{}
+	err = json.Unmarshal(body, &analytics)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
+	}
+
+	return analytics, nil
+}
+
 // GetMostRecentJob retrieves the most recent job for a given connector (by ID prefix)
 // Used for incremental sync - finds the last job posted to determine where to continue
 func (js *JobStore) GetMostRecentJob(idPrefix string) (*models.JobPost, error) {

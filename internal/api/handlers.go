@@ -507,11 +507,79 @@ func (s *Server) AnalyticsHandler(w http.ResponseWriter, r *http.Request) {
 		remotePercentage = (remoteJobs * 100) / totalJobs
 	}
 
+	// Get analytics by source from materialized view
+	sourceAnalytics, err := s.jobStore.GetAnalyticsBySource()
+	if err != nil {
+		fmt.Printf("Error getting analytics by source: %v\n", err)
+		sourceAnalytics = []map[string]interface{}{} // Empty array on error
+	}
+
+	// Build sources array from analytics
+	sources := make([]map[string]interface{}, 0, len(sourceAnalytics))
+	sourcesCount := len(sourceAnalytics)
+	totalCountries := 0
+
+	for _, analytics := range sourceAnalytics {
+		source := map[string]interface{}{
+			"source":      analytics["source"],
+			"total_jobs":  analytics["total_jobs"],
+			"active_jobs": analytics["active_jobs"],
+			"remote_jobs": analytics["remote_jobs"],
+		}
+
+		// Add optional fields if they exist
+		if countries, ok := analytics["countries_covered"]; ok {
+			source["countries_covered"] = countries
+			if c, ok := countries.(float64); ok {
+				totalCountries += int(c)
+			}
+		}
+
+		if avgMin, ok := analytics["avg_min_salary"]; ok && avgMin != nil {
+			source["avg_min_salary"] = avgMin
+		}
+
+		if avgMax, ok := analytics["avg_max_salary"]; ok && avgMax != nil {
+			source["avg_max_salary"] = avgMax
+		}
+
+		if latestSync, ok := analytics["latest_sync"]; ok && latestSync != nil {
+			source["latest_sync"] = latestSync
+		}
+
+		sources = append(sources, source)
+	}
+
 	// Get last sync time from sync logs
-	lastSyncTime := "2025-10-15T23:26:17Z" // Fallback
+	lastSyncTime := time.Now().Format(time.RFC3339)
 	logs, err := s.jobStore.GetRecentSyncLogs(1)
 	if err == nil && len(logs) > 0 {
 		lastSyncTime = logs[0].StartedAt.Format(time.RFC3339)
+	}
+
+	// Get recent activity from sync logs
+	activity := make([]map[string]interface{}, 0)
+	recentLogs, err := s.jobStore.GetRecentSyncLogs(10)
+	if err == nil {
+		for _, log := range recentLogs {
+			event := "sync_completed"
+			if log.Status != "success" {
+				event = "sync_failed"
+			}
+
+			details := fmt.Sprintf("Fetched %d jobs, inserted %d new jobs",
+				log.JobsFetched, log.JobsInserted)
+			if log.ErrorMessage != "" {
+				details = log.ErrorMessage
+			}
+
+			activity = append(activity, map[string]interface{}{
+				"timestamp": log.StartedAt.Format(time.RFC3339),
+				"event":     event,
+				"source":    log.ConnectorName,
+				"details":   details,
+			})
+		}
 	}
 
 	// Return real analytics data
@@ -520,74 +588,13 @@ func (s *Server) AnalyticsHandler(w http.ResponseWriter, r *http.Request) {
 		Data: map[string]interface{}{
 			"summary": map[string]interface{}{
 				"total_jobs":        totalJobs,
-				"sources_count":     6,
-				"countries_covered": 8,
+				"sources_count":     sourcesCount,
+				"countries_covered": totalCountries,
 				"remote_percentage": remotePercentage,
 				"last_sync":         lastSyncTime,
-				"sync_status":       "success",
 			},
-			"sources": []map[string]interface{}{
-				{
-					"source":            "arbetsformedlingen",
-					"total_jobs":        20,
-					"countries_covered": 1,
-					"remote_jobs":       0,
-					"last_run":          "2025-10-15T23:26:17Z",
-					"status":            "success",
-					"jobs_fetched":      20,
-				},
-				{
-					"source":            "eures",
-					"total_jobs":        15,
-					"countries_covered": 5,
-					"last_run":          "2025-10-15T23:26:40Z",
-					"status":            "success",
-					"jobs_fetched":      10,
-				},
-				{
-					"source":            "remotive",
-					"total_jobs":        13,
-					"countries_covered": 1,
-					"remote_jobs":       13,
-					"last_run":          "2025-10-15T23:00:00Z",
-					"status":            "pending",
-					"jobs_fetched":      0,
-				},
-			},
-			"geography": []map[string]interface{}{
-				{
-					"country": "Sweden",
-					"sources": map[string]int{"arbetsformedlingen": 20},
-				},
-				{
-					"country": "European Union",
-					"sources": map[string]int{"eures": 15},
-				},
-				{
-					"country": "Remote",
-					"sources": map[string]int{"remotive": 13},
-				},
-			},
-			"activity": []map[string]interface{}{
-				{
-					"timestamp": "2025-10-15T23:26:40Z",
-					"event":     "sync_completed",
-					"source":    "eures",
-					"details":   "Fetched 10 jobs from Adzuna (nl)",
-				},
-				{
-					"timestamp": "2025-10-15T23:26:17Z",
-					"event":     "sync_completed",
-					"source":    "arbetsformedlingen",
-					"details":   "Fetched 20 jobs, stored 0 new jobs",
-				},
-				{
-					"timestamp": "2025-10-15T23:00:00Z",
-					"event":     "sync_started",
-					"source":    "remotive",
-					"details":   "Starting sync process",
-				},
-			},
+			"sources":  sources,
+			"activity": activity,
 		},
 		Message: "Analytics data retrieved successfully",
 	}
