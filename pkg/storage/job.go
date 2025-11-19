@@ -15,17 +15,19 @@ import (
 
 // JobStore handles job data operations
 type JobStore struct {
-	supabaseURL string
-	supabaseKey string
-	httpClient  *http.Client
+	supabaseURL    string
+	supabaseKey    string
+	serviceRoleKey string
+	httpClient     *http.Client
 }
 
 // NewJobStore creates a new job store
 func NewJobStore() *JobStore {
 	return &JobStore{
-		supabaseURL: os.Getenv("SUPABASE_URL"),
-		supabaseKey: os.Getenv("SUPABASE_ANON_KEY"),
-		httpClient:  &http.Client{},
+		supabaseURL:    os.Getenv("SUPABASE_URL"),
+		supabaseKey:    os.Getenv("SUPABASE_ANON_KEY"),
+		serviceRoleKey: os.Getenv("SUPABASE_SERVICE_ROLE_KEY"),
+		httpClient:     &http.Client{},
 	}
 }
 
@@ -46,9 +48,15 @@ func (js *JobStore) CreateJob(job *models.JobPost) error {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
 
+	// Use service_role key for write operations (bypasses RLS after API key validation)
+	key := js.serviceRoleKey
+	if key == "" {
+		key = js.supabaseKey // Fallback to anon key if service_role not set
+	}
+
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", js.supabaseKey))
-	req.Header.Set("apikey", js.supabaseKey)
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", key))
+	req.Header.Set("apikey", key)
 	req.Header.Set("Prefer", "return=representation")
 
 	resp, err := js.httpClient.Do(req)
@@ -196,9 +204,15 @@ func (js *JobStore) UpdateJob(job *models.JobPost) error {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
 
+	// Use service_role key for write operations (bypasses RLS)
+	key := js.serviceRoleKey
+	if key == "" {
+		key = js.supabaseKey
+	}
+
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", js.supabaseKey))
-	req.Header.Set("apikey", js.supabaseKey)
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", key))
+	req.Header.Set("apikey", key)
 
 	resp, err := js.httpClient.Do(req)
 	if err != nil {
@@ -222,8 +236,14 @@ func (js *JobStore) DeleteJob(id string) error {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
 
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", js.supabaseKey))
-	req.Header.Set("apikey", js.supabaseKey)
+	// Use service_role key for write operations (bypasses RLS)
+	key := js.serviceRoleKey
+	if key == "" {
+		key = js.supabaseKey
+	}
+
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", key))
+	req.Header.Set("apikey", key)
 
 	resp, err := js.httpClient.Do(req)
 	if err != nil {
