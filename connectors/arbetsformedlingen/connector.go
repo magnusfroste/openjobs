@@ -25,10 +25,10 @@ type AFJob struct {
 	ID          string `json:"id"`
 	Headline    string `json:"headline"`
 	Description struct {
-		Text            string `json:"text"`
-		TextFormatted   string `json:"text_formatted"`
-		Requirements    string `json:"requirements"`
-		Conditions      string `json:"conditions"`
+		Text          string `json:"text"`
+		TextFormatted string `json:"text_formatted"`
+		Requirements  string `json:"requirements"`
+		Conditions    string `json:"conditions"`
 	} `json:"description"`
 	Employer struct {
 		Name               string `json:"name"`
@@ -46,7 +46,7 @@ type AFJob struct {
 		Label string `json:"label"`
 	} `json:"salary_type"`
 	SalaryDescription string `json:"salary_description"`
-	EmploymentType struct {
+	EmploymentType    struct {
 		Label string `json:"label"`
 	} `json:"employment_type"`
 	Duration struct {
@@ -147,20 +147,20 @@ func NewArbetsformedlingenConnector(store *storage.JobStore) *Arbetsformedlingen
 // FetchJobs fetches jobs from Arbetsförmedlingen JobSearch API with pagination
 func (ac *ArbetsformedlingenConnector) FetchJobs() ([]models.JobPost, error) {
 	allJobs := make([]models.JobPost, 0)
-	
+
 	// Get last sync time for incremental sync
 	lastSync := ac.getLastSyncTime()
-	
+
 	// Fetch multiple pages (API limit is 100 per request)
 	// Fetch 5 pages = 500 jobs total
 	maxPages := 5
 	limit := 100 // API maximum
-	
+
 	for page := 0; page < maxPages; page++ {
 		offset := page * limit
-		
+
 		fmt.Printf("📄 Fetching page %d/%d (offset: %d, limit: %d)\n", page+1, maxPages, offset, limit)
-		
+
 		url := fmt.Sprintf("%s/search", ac.baseURL)
 		req, err := http.NewRequest("GET", url, nil)
 		if err != nil {
@@ -170,14 +170,14 @@ func (ac *ArbetsformedlingenConnector) FetchJobs() ([]models.JobPost, error) {
 		// Add headers
 		req.Header.Set("User-Agent", ac.userAgent)
 		req.Header.Set("Accept", "application/json")
-		
+
 		// Add query parameters
 		q := req.URL.Query()
 		q.Add("q", "utvecklare OR programmer OR software") // Search for developer/programmer jobs
 		q.Add("limit", strconv.Itoa(limit))                // API maximum: 100
 		q.Add("offset", strconv.Itoa(offset))              // Pagination offset
 		q.Add("sort", "pubdate-desc")                      // Sort by publication date descending
-		
+
 		// Add timestamp filter for incremental sync
 		if !lastSync.IsZero() {
 			publishedAfter := lastSync.Format("2006-01-02")
@@ -186,7 +186,7 @@ func (ac *ArbetsformedlingenConnector) FetchJobs() ([]models.JobPost, error) {
 				fmt.Printf("📅 Fetching jobs published after: %s\n", publishedAfter)
 			}
 		}
-		
+
 		req.URL.RawQuery = q.Encode()
 
 		// Make the request
@@ -219,15 +219,15 @@ func (ac *ArbetsformedlingenConnector) FetchJobs() ([]models.JobPost, error) {
 			job := ac.transformAFJob(afJob)
 			allJobs = append(allJobs, job)
 		}
-		
+
 		fmt.Printf("✅ Page %d: fetched %d jobs (total so far: %d)\n", page+1, len(afResponse.Hits), len(allJobs))
-		
+
 		// If we got fewer jobs than the limit, we've reached the end
 		if len(afResponse.Hits) < limit {
 			fmt.Printf("📊 Reached end of results at page %d\n", page+1)
 			break
 		}
-		
+
 		// Rate limiting: wait 1 second between requests
 		if page < maxPages-1 {
 			time.Sleep(1 * time.Second)
@@ -242,13 +242,13 @@ func (ac *ArbetsformedlingenConnector) FetchJobs() ([]models.JobPost, error) {
 func (ac *ArbetsformedlingenConnector) transformAFJob(af AFJob) models.JobPost {
 	// Parse salary
 	salaryMin, salaryMax, currency := ac.parseSalary(af.SalaryDescription)
-	
+
 	// Detect remote work
 	isRemote := ac.detectRemote(af)
-	
+
 	// Extract URL
 	url := ac.extractURL(af)
-	
+
 	job := models.JobPost{
 		ID:              fmt.Sprintf("af-%s", af.ID),
 		Title:           af.Headline,
@@ -267,51 +267,51 @@ func (ac *ArbetsformedlingenConnector) transformAFJob(af AFJob) models.JobPost {
 		ExpiresDate:     ac.parseAFDate(af.ApplicationDeadline),
 		Requirements:    ac.extractRequirements(af),
 		Benefits:        ac.extractBenefits(af),
+		Source:          "arbetsformedlingen", // Primary source column
 		Fields: map[string]interface{}{
-			"source":                     "arbetsformedlingen",
-			"source_url":                 url,
-			"original_id":                af.ID,
-			"connector":                  "arbetsformedlingen",
-			"language":                   ac.detectLanguage(af.Description.Text), // Detect Swedish vs English
-			"fetched_at":                 time.Now(),
+			"source_url":  url,
+			"original_id": af.ID,
+			"connector":   "arbetsformedlingen",
+			"language":    ac.detectLanguage(af.Description.Text), // Detect Swedish vs English
+			"fetched_at":  time.Now(),
 			// Location details
-			"country":                    af.WorkplaceAddress.Country,
-			"region":                     af.WorkplaceAddress.Region,
-			"municipality":               af.WorkplaceAddress.Municipality,
-			"coordinates":                af.WorkplaceAddress.Coordinates,
+			"country":      af.WorkplaceAddress.Country,
+			"region":       af.WorkplaceAddress.Region,
+			"municipality": af.WorkplaceAddress.Municipality,
+			"coordinates":  af.WorkplaceAddress.Coordinates,
 			// Occupation hierarchy
-			"occupation":                 af.Occupation.Label,
-			"occupation_group":           af.OccupationGroup.Label,
-			"occupation_field":           af.OccupationField.Label,
+			"occupation":       af.Occupation.Label,
+			"occupation_group": af.OccupationGroup.Label,
+			"occupation_field": af.OccupationField.Label,
 			// Employment details
-			"salary_type":                af.SalaryType.Label,
-			"duration":                   af.Duration.Label,
-			"working_hours":              af.WorkingHoursType.Label,
-			"scope_of_work_min":          af.ScopeOfWork.Min,
-			"scope_of_work_max":          af.ScopeOfWork.Max,
+			"salary_type":       af.SalaryType.Label,
+			"duration":          af.Duration.Label,
+			"working_hours":     af.WorkingHoursType.Label,
+			"scope_of_work_min": af.ScopeOfWork.Min,
+			"scope_of_work_max": af.ScopeOfWork.Max,
 			// Application details
-			"application_deadline":       af.ApplicationDeadline,
-			"application_email":          af.ApplicationDetails.Email,
-			"application_reference":      af.ApplicationDetails.Reference,
-			"last_publication_date":      af.LastPublicationDate,
+			"application_deadline":  af.ApplicationDeadline,
+			"application_email":     af.ApplicationDetails.Email,
+			"application_reference": af.ApplicationDetails.Reference,
+			"last_publication_date": af.LastPublicationDate,
 			// Requirements (structured)
-			"must_have_skills":           ac.extractSkillLabels(af.MustHave.Skills),
-			"nice_to_have_skills":        ac.extractSkillLabels(af.NiceToHave.Skills),
-			"must_have_languages":        ac.extractSkillLabels(af.MustHave.Languages),
-			"must_have_work_experiences": ac.extractSkillLabels(af.MustHave.WorkExperiences),
-			"must_have_education":        ac.extractSkillLabels(af.MustHave.Education),
-			"must_have_education_level":  ac.extractSkillLabels(af.MustHave.EducationLevel),
-			"nice_to_have_languages":     ac.extractSkillLabels(af.NiceToHave.Languages),
+			"must_have_skills":              ac.extractSkillLabels(af.MustHave.Skills),
+			"nice_to_have_skills":           ac.extractSkillLabels(af.NiceToHave.Skills),
+			"must_have_languages":           ac.extractSkillLabels(af.MustHave.Languages),
+			"must_have_work_experiences":    ac.extractSkillLabels(af.MustHave.WorkExperiences),
+			"must_have_education":           ac.extractSkillLabels(af.MustHave.Education),
+			"must_have_education_level":     ac.extractSkillLabels(af.MustHave.EducationLevel),
+			"nice_to_have_languages":        ac.extractSkillLabels(af.NiceToHave.Languages),
 			"nice_to_have_work_experiences": ac.extractSkillLabels(af.NiceToHave.WorkExperiences),
-			"nice_to_have_education":     ac.extractSkillLabels(af.NiceToHave.Education),
+			"nice_to_have_education":        ac.extractSkillLabels(af.NiceToHave.Education),
 			// Flags
-			"experience_required":        af.ExperienceRequired,
-			"driving_license_required":   af.DrivingLicenseRequired,
-			"driving_license_types":      ac.extractSkillLabels(af.DrivingLicense),
+			"experience_required":      af.ExperienceRequired,
+			"driving_license_required": af.DrivingLicenseRequired,
+			"driving_license_types":    ac.extractSkillLabels(af.DrivingLicense),
 			// Employer details
-			"employer_workplace":         af.Employer.Workplace,
+			"employer_workplace":           af.Employer.Workplace,
 			"employer_organization_number": af.Employer.OrganizationNumber,
-			"employer_url":               af.Employer.URL,
+			"employer_url":                 af.Employer.URL,
 		},
 	}
 
@@ -383,34 +383,34 @@ func (ac *ArbetsformedlingenConnector) mapExperienceLevel(required bool) string 
 // by analyzing common words in the description text
 func (ac *ArbetsformedlingenConnector) detectLanguage(text string) string {
 	text = strings.ToLower(text)
-	
+
 	// Swedish indicators (common words)
 	swedishWords := []string{
 		" är ", " och ", " för ", " med ", " att ", " du ", " vi ", " som ",
 		" vill ", " söker ", " arbeta ", " företag ", " hos ", " till ", " på ",
 	}
-	
+
 	// English indicators (common words)
 	englishWords := []string{
 		" is ", " and ", " for ", " with ", " to ", " you ", " we ", " as ",
 		" want ", " looking ", " work ", " company ", " at ", " the ", " in ",
 	}
-	
+
 	swedishCount := 0
 	englishCount := 0
-	
+
 	for _, word := range swedishWords {
 		if strings.Contains(text, word) {
 			swedishCount++
 		}
 	}
-	
+
 	for _, word := range englishWords {
 		if strings.Contains(text, word) {
 			englishCount++
 		}
 	}
-	
+
 	// Require at least 3 matches to be confident
 	if swedishCount >= 3 && swedishCount > englishCount {
 		return "sv"
@@ -418,7 +418,7 @@ func (ac *ArbetsformedlingenConnector) detectLanguage(text string) string {
 	if englishCount >= 3 && englishCount > swedishCount {
 		return "en"
 	}
-	
+
 	// Default to Swedish (Arbetsförmedlingen is Swedish service)
 	return "sv"
 }
@@ -578,9 +578,9 @@ func (ac *ArbetsformedlingenConnector) parseSalary(salaryStr string) (*int, *int
 
 	// Check if it's "by agreement" or similar
 	lower := strings.ToLower(salaryStr)
-	if strings.Contains(lower, "överenskommelse") || 
-	   strings.Contains(lower, "agreement") ||
-	   strings.Contains(lower, "enligt ök") {
+	if strings.Contains(lower, "överenskommelse") ||
+		strings.Contains(lower, "agreement") ||
+		strings.Contains(lower, "enligt ök") {
 		return nil, nil, "SEK"
 	}
 
@@ -652,8 +652,8 @@ func (ac *ArbetsformedlingenConnector) detectRemote(af AFJob) bool {
 
 	for _, keyword := range remoteKeywords {
 		if strings.Contains(location, keyword) ||
-		   strings.Contains(description, keyword) ||
-		   strings.Contains(headline, keyword) {
+			strings.Contains(description, keyword) ||
+			strings.Contains(headline, keyword) {
 			return true
 		}
 	}
@@ -692,14 +692,14 @@ func (ac *ArbetsformedlingenConnector) SyncJobs() error {
 	if err != nil {
 		// Log failed sync
 		ac.store.LogSync(&models.SyncLog{
-			ConnectorName: ac.GetID(),
-			StartedAt:     startTime,
-			CompletedAt:   time.Now(),
-			JobsFetched:   0,
-			JobsInserted:  0,
+			ConnectorName:  ac.GetID(),
+			StartedAt:      startTime,
+			CompletedAt:    time.Now(),
+			JobsFetched:    0,
+			JobsInserted:   0,
 			JobsDuplicates: 0,
-			Status:        "error",
-			ErrorMessage:  err.Error(),
+			Status:         "error",
+			ErrorMessage:   err.Error(),
 		})
 		return fmt.Errorf("failed to fetch jobs from Arbetsförmedlingen: %w", err)
 	}
@@ -750,7 +750,7 @@ func (ac *ArbetsformedlingenConnector) SyncJobs() error {
 	if err := ac.saveLastSyncTime(); err != nil {
 		fmt.Printf("⚠️  Failed to save sync timestamp: %v\n", err)
 	}
-	
+
 	fmt.Printf("🎉 Arbetsförmedlingen sync complete! Fetched: %d, Inserted: %d, Duplicates: %d\n", len(jobs), stored, duplicates)
 	return nil
 }
@@ -758,17 +758,19 @@ func (ac *ArbetsformedlingenConnector) SyncJobs() error {
 // extractSkillLabels is a helper to extract labels from skill structs
 func (ac *ArbetsformedlingenConnector) extractSkillLabels(skills interface{}) []string {
 	labels := []string{}
-	
+
 	// Use reflection to handle different struct types
 	switch v := skills.(type) {
-	case []struct{ Label string `json:"label"` }:
+	case []struct {
+		Label string `json:"label"`
+	}:
 		for _, skill := range v {
 			if skill.Label != "" {
 				labels = append(labels, skill.Label)
 			}
 		}
 	}
-	
+
 	return labels
 }
 
@@ -782,7 +784,7 @@ func (ac *ArbetsformedlingenConnector) getLastSyncTime() time.Time {
 		fmt.Println("📅 No previous jobs found - fetching all jobs")
 		return time.Time{}
 	}
-	
+
 	fmt.Printf("📅 Last job in database: %s (posted: %s)\n", job.Title, job.PostedDate.Format("2006-01-02"))
 	return job.PostedDate
 }

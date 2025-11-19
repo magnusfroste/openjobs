@@ -677,11 +677,28 @@ func (s *Server) CreateJob(w http.ResponseWriter, r *http.Request) {
 	// Set default values
 	job.IsActive = true // Jobs posted via API are active by default
 
-	// Initialize fields map if nil
+	// Set source if not provided
+	if job.Source == "" {
+		job.Source = "openjobs-api" // Default for direct API posts
+	}
+
+	// Soft validation: log warning for unusual sources (but allow them)
+	knownSources := map[string]bool{
+		"arbetsformedlingen": true, "remoteok": true, "remotive": true,
+		"adzuna": true, "indeed": true, "jooble": true,
+		"openjobs-web": true, "openjobs-api": true,
+		"greenhouse-api": true, "workable-api": true, "lever-api": true,
+		"custom-integration": true,
+	}
+	if !knownSources[job.Source] {
+		fmt.Printf("⚠️  Unusual source detected: '%s' (allowed but not in standard list)\n", job.Source)
+	}
+
+	// Initialize fields map if nil and add metadata
 	if job.Fields == nil {
 		job.Fields = make(map[string]interface{})
 	}
-	job.Fields["source"] = "web-form"
+
 	job.Fields["api_posted"] = true
 	job.Fields["posted_at"] = now.Format(time.RFC3339)
 

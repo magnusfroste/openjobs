@@ -58,6 +58,7 @@ GET /jobs?is_active=true&limit=100&offset=100
       "title": "Senior Developer",
       "company": "Tech AB",
       "description": "Full job description text...",
+      "source": "arbetsformedlingen",
       "location": "Stockholm",
       "salary": "50000-70000 SEK",
       "salary_min": 50000,
@@ -75,9 +76,9 @@ GET /jobs?is_active=true&limit=100&offset=100
       "requirements": ["Python", "React", "PostgreSQL"],
       "benefits": ["Remote work", "Health insurance", "Pension"],
       "fields": {
-        "source": "arbetsformedlingen",
         "connector": "arbetsformedlingen",
-        "original_id": "12345"
+        "original_id": "12345",
+        "source_url": "https://arbetsformedlingen.se/..."
       }
     }
   ]
@@ -154,6 +155,159 @@ Check API health status.
 
 ---
 
+### POST /jobs
+
+Create a new job posting.
+
+**URL:** `/jobs`
+
+**Method:** `POST`
+
+**Authentication:** Required (`X-API-Key` header)
+
+**Headers:**
+
+| Header | Type | Required | Description |
+|--------|------|----------|-------------|
+| `Content-Type` | string | Yes | Must be `application/json` |
+| `X-API-Key` | string | Yes | Your company API key (get from [registration](https://openjobs-web.vercel.app/register)) |
+
+**Request Body:**
+
+```json
+{
+  "title": "Senior React Developer",           // Required
+  "company": "Your Company",                   // Required
+  "description": "We are looking for...",      // Required
+  "source": "openjobs-web",                    // Optional (default: openjobs-api)
+  "location": "Stockholm, Sweden",             // Optional
+  "employment_type": "full-time",              // Optional
+  "salary_min": 50000,                         // Optional (number)
+  "salary_max": 70000,                         // Optional (number)
+  "salary_currency": "SEK",                    // Optional (SEK, USD, EUR, GBP)
+  "is_remote": false,                          // Optional (boolean)
+  "url": "https://yourcompany.com/apply",      // Optional
+  "expires_date": "2025-12-31T23:59:59Z",     // Optional (ISO 8601)
+  "requirements": [                            // Optional (array of strings)
+    "5+ years React experience",
+    "TypeScript proficiency"
+  ],
+  "benefits": [                                // Optional (array of strings)
+    "Health insurance",
+    "Remote work"
+  ],
+  "fields": {                                  // Optional (metadata object)
+    "tags": ["react", "typescript"],
+    "ats_job_id": "gh-123456"
+  }
+}
+```
+
+**Source Field Values:**
+
+Use `source` to track where the job came from:
+- `openjobs-web` - Posted via OpenJobs Web portal (auto-set)
+- `openjobs-api` - Direct API post (default if not specified)
+- `greenhouse-api` - From Greenhouse ATS
+- `workable-api` - From Workable ATS
+- `lever-api` - From Lever ATS
+- `custom-integration` - Custom company integration
+
+See [SOURCE_GUIDE.md](SOURCE_GUIDE.md) for detailed guidance.
+
+**Success Response:**
+
+**Code:** `201 Created`
+
+**Content:**
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "web-123e4567-e89b-12d3-a456-426614174000",
+    "title": "Senior React Developer",
+    "company": "Your Company",
+    "description": "We are looking for...",
+    "source": "openjobs-api",
+    "location": "Stockholm, Sweden",
+    "employment_type": "full-time",
+    "salary_min": 50000,
+    "salary_max": 70000,
+    "salary_currency": "SEK",
+    "is_remote": false,
+    "is_active": true,
+    "url": "https://yourcompany.com/apply",
+    "posted_date": "2025-11-19T01:00:00Z",
+    "requirements": ["5+ years React experience", "TypeScript proficiency"],
+    "benefits": ["Health insurance", "Remote work"],
+    "fields": {
+      "api_posted": true,
+      "posted_at": "2025-11-19T01:00:00Z",
+      "tags": ["react", "typescript"]
+    }
+  },
+  "message": "Job created successfully"
+}
+```
+
+**Error Responses:**
+
+**Code:** `400 Bad Request`
+
+```json
+{
+  "success": false,
+  "message": "Title is required"
+}
+```
+
+**Code:** `401 Unauthorized`
+
+```json
+{
+  "success": false,
+  "message": "Missing X-API-Key header"
+}
+```
+
+or
+
+```json
+{
+  "success": false,
+  "message": "Invalid API key"
+}
+```
+
+**Example:**
+
+```bash
+curl -X POST https://app-openjobs.katsu6.easypanel.host/jobs \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: opj_your_api_key_here" \
+  -d '{
+    "title": "Senior Developer",
+    "company": "Tech AB",
+    "description": "We are hiring a senior developer...",
+    "source": "greenhouse-api",
+    "location": "Stockholm",
+    "employment_type": "full-time",
+    "salary_min": 50000,
+    "salary_max": 70000,
+    "salary_currency": "SEK",
+    "is_remote": true,
+    "requirements": ["React", "TypeScript", "Node.js"],
+    "benefits": ["Health insurance", "Remote work"],
+    "fields": {
+      "ats_system": "greenhouse",
+      "ats_job_id": "gh-123456"
+    }
+  }'
+```
+
+---
+
 ### POST /sync/manual
 
 Trigger a manual sync of all connectors (admin only).
@@ -172,10 +326,11 @@ Trigger a manual sync of all connectors (admin only).
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `id` | string | Unique job identifier (format: `{source}-{id}`) |
+| `id` | string | Unique job identifier (format: `{source}-{id}` or `web-{uuid}`) |
 | `title` | string | Job title |
 | `company` | string | Company name |
 | `description` | string | Full job description |
+| `source` | string | Primary ingestion source (e.g., `openjobs-web`, `greenhouse-api`, `arbetsformedlingen`) |
 | `location` | string | Job location (city, country) |
 | `salary` | string | Salary range as text |
 | `salary_min` | integer | Minimum salary (nullable) |
@@ -192,7 +347,7 @@ Trigger a manual sync of all connectors (admin only).
 | `updated_at` | ISO 8601 | When job was last modified in OpenJobs |
 | `requirements` | string[] | Array of required skills/technologies |
 | `benefits` | string[] | Array of job benefits |
-| `fields` | object | Additional metadata (source-specific) |
+| `fields` | object | Additional metadata (source-specific, ATS info, tags, etc.) |
 
 ---
 
@@ -257,6 +412,13 @@ Currently no rate limits enforced. Please be respectful:
 ---
 
 ## 📝 Changelog
+
+### Version 2.1 (2025-11-19)
+- ✅ Added `POST /jobs` endpoint for job creation
+- ✅ Added `source` field for tracking job ingestion channel
+- ✅ Added API key authentication via `X-API-Key` header
+- ✅ Added support for ATS integrations (Greenhouse, Workable, Lever)
+- ✅ Moved `source` from `fields` to top-level field for better analytics
 
 ### Version 2.0 (2025-11-17)
 - ✅ Added `is_active` filtering

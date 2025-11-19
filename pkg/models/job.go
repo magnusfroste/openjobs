@@ -26,7 +26,8 @@ type JobPost struct {
 	ExpiresDate     time.Time              `json:"expires_date" db:"expires_date"`
 	Requirements    []string               `json:"requirements" db:"requirements"`
 	Benefits        []string               `json:"benefits" db:"benefits"`
-	Fields          map[string]interface{} `json:"fields" db:"fields"`
+	Source          string                 `json:"source" db:"source"`           // Primary ingestion source
+	Fields          map[string]interface{} `json:"fields,omitempty" db:"fields"` // Additional metadata
 }
 
 // JobPostTraditional represents a job posting with fixed schema
