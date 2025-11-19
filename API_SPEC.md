@@ -1,7 +1,8 @@
 # OpenJobs API Specification
 
 **Version:** 2.0  
-**Base URL:** `https://app-openjobs.katsu6.easypanel.host`  
+**Base URL:** `https://api.openjobs.ink`  
+**Legacy URL:** `https://app-openjobs.katsu6.easypanel.host` (deprecated)  
 **Authentication:** None required for read endpoints
 
 ---
@@ -291,7 +292,7 @@ or
 **Example:**
 
 ```bash
-curl -X POST https://app-openjobs.katsu6.easypanel.host/jobs \
+curl -X POST https://api.openjobs.ink/jobs \
   -H "Content-Type: application/json" \
   -H "X-API-Key: opj_your_api_key_here" \
   -d '{

@@ -12,7 +12,8 @@ OpenJobs aggregates job listings from multiple sources into a unified API, featu
 
 ## 🎯 Current Status
 
-**Production Deployment:** https://app-openjobs.katsu6.easypanel.host
+**Production Deployment:** https://api.openjobs.ink  
+**Legacy URL:** https://app-openjobs.katsu6.easypanel.host (deprecated)
 
 | Connector | Jobs | Sync Method | Limit |
 |-----------|------|-------------|-------|
@@ -137,7 +138,7 @@ https://openjobs-web.vercel.app/login
 
 **Option B: Use the API** (For Integration)
 ```bash
-curl -X POST https://app-openjobs.katsu6.easypanel.host/jobs \
+curl -X POST https://api.openjobs.ink/jobs \
   -H "Content-Type: application/json" \
   -H "X-API-Key: YOUR-API-KEY-HERE" \
   -d '{
@@ -337,7 +338,7 @@ To post jobs via the API, you need an API key from OpenJobs_Web:
 
 ```bash
 # Example: Post a job with your API key
-curl -X POST https://app-openjobs.katsu6.easypanel.host/jobs \
+curl -X POST https://api.openjobs.ink/jobs \
   -H "Content-Type: application/json" \
   -H "X-API-Key: your-api-key-here" \
   -d '{"title":"Developer","company":"Acme","description":"..."}'
@@ -358,7 +359,7 @@ curl -X POST https://app-openjobs.katsu6.easypanel.host/jobs \
 
 ### Manual Sync
 ```bash
-curl -X POST https://app-openjobs.katsu6.easypanel.host/sync/manual
+curl -X POST https://api.openjobs.ink/sync/manual
 ```
 
 ### Incremental Sync Logic
