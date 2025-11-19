@@ -223,7 +223,7 @@ func main() {
 	http.HandleFunc("/sync/manual", middleware.CORS(createSyncHandler(server)))
 
 	// Job routes
-	http.HandleFunc("/jobs", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/jobs", middleware.CORS(func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodGet:
 			server.GetAllJobs(w, r)
@@ -233,10 +233,10 @@ func main() {
 		default:
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		}
-	})
+	}))
 
 	// Job by ID routes
-	http.HandleFunc("/jobs/", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/jobs/", middleware.CORS(func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodGet:
 			server.GetJobByID(w, r)
@@ -247,7 +247,7 @@ func main() {
 		default:
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		}
-	})
+	}))
 
 	// Root API info (dashboard moved to OpenJobs_Web)
 	fmt.Println("📝 Registering route: / (API info)")
