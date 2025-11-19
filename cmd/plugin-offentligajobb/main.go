@@ -31,7 +31,7 @@ func main() {
 	store := storage.NewJobStore()
 
 	// Create Offentliga Jobb connector
-	connector := offentligajobb.NewIndeedChromeConnector(store)
+	connector := offentligajobb.NewOffentligaJobbConnector(store)
 
 	// Setup HTTP server
 	http.HandleFunc("/health", healthHandler)
@@ -40,7 +40,7 @@ func main() {
 
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "8087"
+		port = "8089"
 	}
 
 	fmt.Println("🌐 ========================================")
@@ -77,7 +77,7 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func syncHandler(connector *offentligajobb.IndeedChromeConnector) http.HandlerFunc {
+func syncHandler(connector *offentligajobb.OffentligaJobbConnector) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -86,7 +86,7 @@ func syncHandler(connector *offentligajobb.IndeedChromeConnector) http.HandlerFu
 
 		fmt.Println("🔄 Chrome scraping sync triggered via HTTP")
 		fmt.Println("🌐 This may take 3-5 minutes (Chrome is slower but works!)...")
-		
+
 		err := connector.SyncJobs()
 
 		w.Header().Set("Content-Type", "application/json")
@@ -107,14 +107,14 @@ func syncHandler(connector *offentligajobb.IndeedChromeConnector) http.HandlerFu
 	}
 }
 
-func jobsHandler(connector *offentligajobb.IndeedChromeConnector) http.HandlerFunc {
+func jobsHandler(connector *offentligajobb.OffentligaJobbConnector) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
 
-		// Fetch jobs from Indeed
+		// Fetch jobs from Offentliga Jobb
 		jobs, err := connector.FetchJobs()
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
