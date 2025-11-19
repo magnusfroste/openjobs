@@ -293,19 +293,58 @@ curl https://your-domain.com/jobs?limit=1
 - `POST /sync/manual` - Trigger manual sync
 - `GET /plugins` - List registered plugins
 
-### Example: Create a Job
+### Example: Create a Job (Requires API Key)
 
 ```bash
 curl -X POST https://your-domain.com/jobs \
   -H "Content-Type: application/json" \
+  -H "X-API-Key: your-api-key-here" \
   -d '{
-    "title": "Software Engineer",
+    "title": "Senior React Developer",
     "company": "TechCorp",
-    "description": "We are hiring!",
+    "description": "We are looking for an experienced developer...",
     "location": "Stockholm, Sweden",
-    "employment_type": "Full-time"
+    "employment_type": "full-time",
+    "salary_min": 50000,
+    "salary_max": 70000,
+    "salary_currency": "SEK",
+    "is_remote": false,
+    "url": "https://techcorp.com/apply",
+    "requirements": [
+      "5+ years React experience",
+      "TypeScript proficiency"
+    ],
+    "benefits": [
+      "Health insurance",
+      "Remote work"
+    ]
   }'
 ```
+
+**Response (201 Created):**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "web-123e4567-e89b-12d3-a456-426614174000",
+    "title": "Senior React Developer",
+    "company": "TechCorp",
+    "is_active": true,
+    "posted_date": "2025-11-19T00:00:00Z",
+    ...
+  },
+  "message": "Job created successfully"
+}
+```
+
+**Required Fields:**
+- `title` - Job title
+- `company` - Company name
+- `description` - Job description
+
+**Authentication:**
+- Requires valid `X-API-Key` header
+- Get your API key from OpenJobs_Web after registration
 
 ## Next Steps
 

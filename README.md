@@ -90,9 +90,12 @@ CRON_SCHEDULE=0 6 * * *  # Daily at 6:00 AM
 GET  /health                 # System health check
 GET  /                       # Dashboard UI
 
-# Jobs
+# Jobs (Public)
 GET  /jobs                   # List all jobs
 GET  /jobs/:id               # Get specific job
+
+# Jobs (Protected - Requires API Key)
+POST /jobs                   # Post a new job (requires X-API-Key header)
 
 # Sync
 POST /sync/manual            # Trigger manual sync
@@ -101,6 +104,77 @@ GET  /sync/history           # View sync logs
 # Plugins
 GET  /plugins                # List registered plugins
 ```
+
+> **📝 Note:** To post jobs via API, you need an API key. Register at [OpenJobs_Web](https://openjobs-web.vercel.app) to get your free API key instantly.
+
+## 🚀 How to Start Posting Jobs
+
+### Quick Start (3 Steps)
+
+**1. Get Your API Key (30 seconds)**
+```bash
+# Visit the registration page
+https://openjobs-web.vercel.app/register
+
+# Fill in:
+- Company name
+- Email
+- Website (optional)
+
+# ✅ Your API key is generated instantly!
+```
+
+**2. Post Your First Job**
+
+**Option A: Use the Web Form** (Easiest)
+```bash
+# Login at OpenJobs_Web
+https://openjobs-web.vercel.app/login
+
+# Click "Post a Job"
+# Fill the form and submit
+```
+
+**Option B: Use the API** (For Integration)
+```bash
+curl -X POST https://app-openjobs.katsu6.easypanel.host/jobs \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: YOUR-API-KEY-HERE" \
+  -d '{
+    "title": "Senior React Developer",
+    "company": "Your Company",
+    "description": "We are looking for an experienced developer...",
+    "location": "Stockholm, Sweden",
+    "employment_type": "full-time",
+    "salary_min": 50000,
+    "salary_max": 70000,
+    "salary_currency": "SEK",
+    "is_remote": false,
+    "url": "https://yourcompany.com/apply"
+  }'
+```
+
+**3. Your Job is Live!**
+- ✅ Immediately available via `/jobs` API
+- ✅ Visible to all job aggregators
+- ✅ Included in OpenJobs ecosystem
+
+### Required Fields
+- `title` - Job title
+- `company` - Company name  
+- `description` - Job description
+
+### Optional Fields
+- `location`, `employment_type`, `salary_min`, `salary_max`, `salary_currency`
+- `is_remote`, `url`, `expires_date`
+- `requirements[]`, `benefits[]`
+
+### Need Help?
+- 📖 Full API docs: See [SETUP_GUIDE.md](SETUP_GUIDE.md)
+- 💬 Questions: Open a GitHub issue
+- 🌐 Web interface: [OpenJobs_Web](https://openjobs-web.vercel.app)
+
+---
 
 ### Jobs API - Query Parameters
 
@@ -252,7 +326,30 @@ type PluginConnector interface {
 
 See existing connectors for examples.
 
-## 🔄 Data Sync
+## � Getting an API Key
+
+To post jobs via the API, you need an API key from OpenJobs_Web:
+
+1. **Register**: Visit [OpenJobs_Web](https://openjobs-web.vercel.app/register)
+2. **Create Account**: Fill in your company details
+3. **Get API Key**: Your unique API key is generated instantly
+4. **Use It**: Include in `X-API-Key` header when posting jobs
+
+```bash
+# Example: Post a job with your API key
+curl -X POST https://app-openjobs.katsu6.easypanel.host/jobs \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: your-api-key-here" \
+  -d '{"title":"Developer","company":"Acme","description":"..."}'
+```
+
+**Features:**
+- ✅ Free forever
+- ✅ Instant generation
+- ✅ No credit card required
+- ✅ Post unlimited jobs
+
+## �� Data Sync
 
 ### Automatic Sync
 - **Schedule**: Daily at 6:00 AM (configurable via `CRON_SCHEDULE`)
