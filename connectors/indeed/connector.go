@@ -25,34 +25,34 @@ type IndeedConnector struct {
 
 // IndeedResponse represents the API response from Indeed
 type IndeedResponse struct {
-	Version       int          `json:"version"`
-	Query         string       `json:"query"`
-	Location      string       `json:"location"`
-	TotalResults  int          `json:"totalResults"`
-	Start         int          `json:"start"`
-	End           int          `json:"end"`
-	PageNumber    int          `json:"pageNumber"`
-	Results       []IndeedJob  `json:"results"`
+	Version      int         `json:"version"`
+	Query        string      `json:"query"`
+	Location     string      `json:"location"`
+	TotalResults int         `json:"totalResults"`
+	Start        int         `json:"start"`
+	End          int         `json:"end"`
+	PageNumber   int         `json:"pageNumber"`
+	Results      []IndeedJob `json:"results"`
 }
 
 // IndeedJob represents a job from the Indeed API
 type IndeedJob struct {
-	JobTitle             string    `json:"jobtitle"`
-	Company              string    `json:"company"`
-	City                 string    `json:"city"`
-	State                string    `json:"state"`
-	Country              string    `json:"country"`
-	FormattedLocation    string    `json:"formattedLocation"`
-	Source               string    `json:"source"`
-	Date                 string    `json:"date"`
-	Snippet              string    `json:"snippet"`
-	URL                  string    `json:"url"`
-	Latitude             float64   `json:"latitude"`
-	Longitude            float64   `json:"longitude"`
-	JobKey               string    `json:"jobkey"`
-	Sponsored            bool      `json:"sponsored"`
-	Expired              bool      `json:"expired"`
-	FormattedRelativeTime string   `json:"formattedRelativeTime"`
+	JobTitle              string  `json:"jobtitle"`
+	Company               string  `json:"company"`
+	City                  string  `json:"city"`
+	State                 string  `json:"state"`
+	Country               string  `json:"country"`
+	FormattedLocation     string  `json:"formattedLocation"`
+	Source                string  `json:"source"`
+	Date                  string  `json:"date"`
+	Snippet               string  `json:"snippet"`
+	URL                   string  `json:"url"`
+	Latitude              float64 `json:"latitude"`
+	Longitude             float64 `json:"longitude"`
+	JobKey                string  `json:"jobkey"`
+	Sponsored             bool    `json:"sponsored"`
+	Expired               bool    `json:"expired"`
+	FormattedRelativeTime string  `json:"formattedRelativeTime"`
 }
 
 // NewIndeedConnector creates a new Indeed connector
@@ -85,23 +85,23 @@ func (ic *IndeedConnector) GetName() string {
 // FetchJobs fetches job listings from Indeed API
 func (ic *IndeedConnector) FetchJobs() ([]models.JobPost, error) {
 	allJobs := []models.JobPost{}
-	
+
 	// Search queries to get diverse jobs
 	queries := []string{
-		"",                    // All jobs
-		"developer",           // Tech jobs
-		"engineer",            // Engineering jobs
-		"manager",             // Management jobs
-		"sales",               // Sales jobs
-		"customer service",    // Service jobs
+		"",                 // All jobs
+		"developer",        // Tech jobs
+		"engineer",         // Engineering jobs
+		"manager",          // Management jobs
+		"sales",            // Sales jobs
+		"customer service", // Service jobs
 	}
 
 	// Get last sync time for incremental sync
 	lastSync := ic.getLastSyncTime()
-	
+
 	for _, query := range queries {
 		fmt.Printf("🔍 Searching Indeed for: '%s'\n", query)
-		
+
 		// Fetch multiple pages (up to 100 results per query)
 		for start := 0; start < 100; start += 25 {
 			jobs, err := ic.fetchJobsPage(query, start)
@@ -109,28 +109,28 @@ func (ic *IndeedConnector) FetchJobs() ([]models.JobPost, error) {
 				fmt.Printf("⚠️  Error fetching page %d for query '%s': %v\n", start/25+1, query, err)
 				continue
 			}
-			
+
 			if len(jobs) == 0 {
 				break // No more results
 			}
-			
+
 			// Filter to only new jobs
 			for _, job := range jobs {
 				if lastSync.IsZero() || job.PostedDate.After(lastSync) {
 					allJobs = append(allJobs, job)
 				}
 			}
-			
+
 			// Rate limiting - be nice to Indeed API
 			time.Sleep(1 * time.Second)
 		}
 	}
-	
+
 	// Deduplicate by job key
 	uniqueJobs := ic.deduplicateJobs(allJobs)
-	
+
 	fmt.Printf("📊 Fetched %d unique jobs from Indeed (filtered from %d total)\n", len(uniqueJobs), len(allJobs))
-	
+
 	return uniqueJobs, nil
 }
 
@@ -144,47 +144,47 @@ func (ic *IndeedConnector) fetchJobsPage(query string, start int) ([]models.JobP
 	params.Set("co", ic.country)
 	params.Set("limit", "25")
 	params.Set("start", fmt.Sprintf("%d", start))
-	
+
 	if query != "" {
 		params.Set("q", query)
 	}
-	
+
 	// Add user IP and user agent if available
 	params.Set("useragent", ic.userAgent)
-	
+
 	apiURL := fmt.Sprintf("%s?%s", ic.baseURL, params.Encode())
-	
+
 	req, err := http.NewRequest("GET", apiURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
-	
+
 	req.Header.Set("User-Agent", ic.userAgent)
 	req.Header.Set("Accept", "application/json")
-	
+
 	client := &http.Client{Timeout: 30 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch jobs from Indeed: %w", err)
 	}
 	defer resp.Body.Close()
-	
+
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
 		return nil, fmt.Errorf("indeed API error %d: %s", resp.StatusCode, string(body))
 	}
-	
+
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response: %w", err)
 	}
-	
+
 	var indeedResp IndeedResponse
 	err = json.Unmarshal(body, &indeedResp)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse response: %w", err)
 	}
-	
+
 	// Transform to our JobPost format
 	jobs := make([]models.JobPost, 0, len(indeedResp.Results))
 	for _, indeedJob := range indeedResp.Results {
@@ -194,7 +194,7 @@ func (ic *IndeedConnector) fetchJobsPage(query string, start int) ([]models.JobP
 		job := ic.transformIndeedJob(indeedJob)
 		jobs = append(jobs, job)
 	}
-	
+
 	return jobs, nil
 }
 
@@ -218,8 +218,8 @@ func (ic *IndeedConnector) transformIndeedJob(ij IndeedJob) models.JobPost {
 		ExpiresDate:     ic.parseIndeedDate(ij.Date).AddDate(0, 1, 0), // 1 month expiration
 		Requirements:    ic.extractRequirements(ij),
 		Benefits:        []string{},
+		Source:          "indeed", // Primary source column
 		Fields: map[string]interface{}{
-			"source":                  "indeed",
 			"source_url":              ij.URL,
 			"original_id":             ij.JobKey,
 			"city":                    ij.City,
@@ -234,7 +234,7 @@ func (ic *IndeedConnector) transformIndeedJob(ij IndeedJob) models.JobPost {
 			"fetched_at":              time.Now(),
 		},
 	}
-	
+
 	return job
 }
 
@@ -243,10 +243,10 @@ func (ic *IndeedConnector) cleanSnippet(snippet string) string {
 	// Remove <b> tags (Indeed uses them for highlighting)
 	snippet = strings.ReplaceAll(snippet, "<b>", "")
 	snippet = strings.ReplaceAll(snippet, "</b>", "")
-	
+
 	// Trim whitespace
 	snippet = strings.TrimSpace(snippet)
-	
+
 	return snippet
 }
 
@@ -255,7 +255,7 @@ func (ic *IndeedConnector) formatLocation(ij IndeedJob) string {
 	if ij.FormattedLocation != "" {
 		return ij.FormattedLocation
 	}
-	
+
 	parts := []string{}
 	if ij.City != "" {
 		parts = append(parts, ij.City)
@@ -266,29 +266,29 @@ func (ic *IndeedConnector) formatLocation(ij IndeedJob) string {
 	if ij.Country != "" {
 		parts = append(parts, ij.Country)
 	}
-	
+
 	if len(parts) > 0 {
 		return strings.Join(parts, ", ")
 	}
-	
+
 	return "Sweden"
 }
 
 // detectRemote checks if job is remote
 func (ic *IndeedConnector) detectRemote(ij IndeedJob) bool {
 	text := strings.ToLower(ij.JobTitle + " " + ij.Snippet + " " + ij.FormattedLocation)
-	
+
 	remoteKeywords := []string{
 		"remote", "distans", "hemarbete", "hemifrån",
 		"work from home", "wfh", "anywhere",
 	}
-	
+
 	for _, keyword := range remoteKeywords {
 		if strings.Contains(text, keyword) {
 			return true
 		}
 	}
-	
+
 	return false
 }
 
@@ -297,20 +297,20 @@ func (ic *IndeedConnector) parseIndeedDate(dateStr string) time.Time {
 	if dateStr == "" {
 		return time.Now()
 	}
-	
+
 	// Indeed uses various formats, try common ones
 	formats := []string{
 		time.RFC3339,
 		"Mon, 02 Jan 2006 15:04:05 MST",
 		"2006-01-02",
 	}
-	
+
 	for _, format := range formats {
 		if t, err := time.Parse(format, dateStr); err == nil {
 			return t
 		}
 	}
-	
+
 	return time.Now()
 }
 
@@ -318,9 +318,9 @@ func (ic *IndeedConnector) parseIndeedDate(dateStr string) time.Time {
 func (ic *IndeedConnector) extractRequirements(ij IndeedJob) []string {
 	requirements := []string{}
 	seen := make(map[string]bool)
-	
+
 	text := strings.ToLower(ij.JobTitle + " " + ij.Snippet)
-	
+
 	// Common tech skills and keywords
 	keywords := []string{
 		"Java", "Python", "JavaScript", "TypeScript", "C++", "C#", ".NET", "PHP", "Ruby", "Go", "Rust", "Swift", "Kotlin",
@@ -330,14 +330,14 @@ func (ic *IndeedConnector) extractRequirements(ij IndeedJob) []string {
 		"API", "REST", "GraphQL", "Microservices", "Agile", "Scrum",
 		"Swedish", "English", "B2B", "B2C", "SaaS",
 	}
-	
+
 	for _, keyword := range keywords {
 		if strings.Contains(text, strings.ToLower(keyword)) && !seen[keyword] {
 			requirements = append(requirements, keyword)
 			seen[keyword] = true
 		}
 	}
-	
+
 	return requirements
 }
 
@@ -345,14 +345,14 @@ func (ic *IndeedConnector) extractRequirements(ij IndeedJob) []string {
 func (ic *IndeedConnector) deduplicateJobs(jobs []models.JobPost) []models.JobPost {
 	seen := make(map[string]bool)
 	unique := []models.JobPost{}
-	
+
 	for _, job := range jobs {
 		if !seen[job.ID] {
 			seen[job.ID] = true
 			unique = append(unique, job)
 		}
 	}
-	
+
 	return unique
 }
 
@@ -360,24 +360,24 @@ func (ic *IndeedConnector) deduplicateJobs(jobs []models.JobPost) []models.JobPo
 func (ic *IndeedConnector) SyncJobs() error {
 	startTime := time.Now()
 	fmt.Println("🔄 Starting Indeed Sweden jobs sync...")
-	
+
 	jobs, err := ic.FetchJobs()
 	if err != nil {
 		// Log failed sync
 		ic.store.LogSync(&models.SyncLog{
-			ConnectorName: ic.GetID(),
-			StartedAt:     startTime,
-			CompletedAt:   time.Now(),
-			JobsFetched:   0,
-			JobsInserted:  0,
+			ConnectorName:  ic.GetID(),
+			StartedAt:      startTime,
+			CompletedAt:    time.Now(),
+			JobsFetched:    0,
+			JobsInserted:   0,
 			JobsDuplicates: 0,
-			Status:        "failed",
+			Status:         "failed",
 		})
 		return fmt.Errorf("failed to fetch jobs from Indeed: %w", err)
 	}
-	
+
 	fmt.Printf("📥 Fetched %d jobs from Indeed Sweden\n", len(jobs))
-	
+
 	stored := 0
 	duplicates := 0
 	for _, job := range jobs {
@@ -387,24 +387,24 @@ func (ic *IndeedConnector) SyncJobs() error {
 			fmt.Printf("⚠️  Error checking existing job %s: %v\n", job.ID, err)
 			continue
 		}
-		
+
 		if existing != nil {
 			// Job already exists, skip
 			duplicates++
 			continue
 		}
-		
+
 		// Store new job
 		err = ic.store.CreateJob(&job)
 		if err != nil {
 			fmt.Printf("❌ Error storing job %s: %v\n", job.ID, err)
 			continue
 		}
-		
+
 		stored++
 		fmt.Printf("✅ Stored job: %s at %s (%s)\n", job.Title, job.Company, job.Location)
 	}
-	
+
 	// Log successful sync
 	if err := ic.store.LogSync(&models.SyncLog{
 		ConnectorName:  ic.GetID(),
@@ -417,7 +417,7 @@ func (ic *IndeedConnector) SyncJobs() error {
 	}); err != nil {
 		fmt.Printf("⚠️  Failed to log sync: %v\n", err)
 	}
-	
+
 	fmt.Printf("🎉 Indeed sync complete! Fetched: %d, Inserted: %d, Duplicates: %d\n", len(jobs), stored, duplicates)
 	return nil
 }
@@ -429,7 +429,7 @@ func (ic *IndeedConnector) getLastSyncTime() time.Time {
 		fmt.Println("📅 No previous Indeed jobs found - processing all jobs")
 		return time.Time{}
 	}
-	
+
 	fmt.Printf("📅 Last Indeed job in database: %s (posted: %s)\n", job.Title, job.PostedDate.Format("2006-01-02"))
 	return job.PostedDate
 }
