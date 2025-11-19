@@ -47,6 +47,18 @@ CREATE INDEX idx_job_analytics_source ON job_analytics(source);
 GRANT SELECT ON job_analytics TO authenticated;
 GRANT SELECT ON job_analytics TO anon;
 
+-- SECURITY NOTE: Materialized views do NOT support Row-Level Security (RLS)
+-- This means ALL data in job_analytics is accessible to anyone with anon key
+-- This is acceptable because:
+-- 1. Analytics data is meant to be public (job counts, averages, etc.)
+-- 2. No sensitive user data is included
+-- 3. Access is through /analytics endpoint which is intentionally public
+-- 
+-- If you need to restrict analytics access in the future:
+-- - Remove GRANT to anon
+-- - Use service_role key in GetAnalyticsBySource()
+-- - Add authentication to /analytics endpoint
+
 -- Function to refresh materialized view
 CREATE OR REPLACE FUNCTION refresh_job_analytics()
 RETURNS void AS $$

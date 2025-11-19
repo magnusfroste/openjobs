@@ -228,6 +228,84 @@ REFRESH MATERIALIZED VIEW job_analytics;
 
 ---
 
+## 🔒 Security Considerations
+
+### **Materialized Views and RLS**
+
+**IMPORTANT:** Materialized views in PostgreSQL **do NOT support Row-Level Security (RLS)**.
+
+This means:
+- ❌ RLS policies are ignored on materialized views
+- ❌ All data is accessible to anyone with SELECT permission
+- ❌ Cannot filter data based on user/role
+
+### **Current Security Model**
+
+**job_analytics is PUBLIC:**
+```sql
+GRANT SELECT ON job_analytics TO anon;
+GRANT SELECT ON job_analytics TO authenticated;
+```
+
+**Why this is acceptable:**
+1. ✅ Analytics data is meant to be public (job counts, averages)
+2. ✅ No sensitive user data (passwords, emails, API keys)
+3. ✅ No company-specific private information
+4. ✅ `/analytics` endpoint is intentionally public
+
+**What's exposed:**
+- Job counts per source
+- Average salaries (aggregated)
+- Remote job percentages
+- Country coverage
+- Data quality metrics
+
+**What's NOT exposed:**
+- Individual job details
+- Company API keys
+- User information
+- Private company data
+
+### **If You Need Private Analytics**
+
+**Option 1: Remove anon access**
+```sql
+REVOKE SELECT ON job_analytics FROM anon;
+-- Only authenticated users can access
+```
+
+**Option 2: Use service_role key**
+```go
+// In GetAnalyticsBySource()
+req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", js.serviceRoleKey))
+```
+
+**Option 3: Add authentication to endpoint**
+```go
+func (s *Server) AnalyticsHandler(w http.ResponseWriter, r *http.Request) {
+    // Require API key
+    if !s.ValidateAPIKey(r) {
+        http.Error(w, "Unauthorized", 401)
+        return
+    }
+    // ... rest of handler
+}
+```
+
+**Option 4: Use regular view with RLS**
+```sql
+-- Instead of materialized view
+CREATE VIEW job_analytics_secure AS
+SELECT ...
+FROM job_posts
+WHERE is_active = true;  -- Can add RLS here
+
+-- Enable RLS
+ALTER VIEW job_analytics_secure SET (security_invoker = true);
+```
+
+---
+
 ## 🐛 Troubleshooting
 
 ### **Issue: Analytics showing old data**
