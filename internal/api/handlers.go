@@ -725,6 +725,7 @@ func (s *Server) GetAllJobs(w http.ResponseWriter, r *http.Request) {
 	limit := 20 // default
 	offset := 0
 	createdAfter := r.URL.Query().Get("created_after")
+	company := r.URL.Query().Get("company") // Filter by company name
 
 	if l := r.URL.Query().Get("limit"); l != "" {
 		if parsed, err := strconv.Atoi(l); err == nil && parsed > 0 {
@@ -741,7 +742,11 @@ func (s *Server) GetAllJobs(w http.ResponseWriter, r *http.Request) {
 	// Support incremental sync via created_after parameter
 	var jobs []*models.JobPost
 	var err error
-	if createdAfter != "" {
+
+	// Filter by company if specified
+	if company != "" {
+		jobs, err = s.jobStore.GetJobsByCompany(company, limit, offset)
+	} else if createdAfter != "" {
 		jobs, err = s.jobStore.GetJobsAfter(createdAfter, limit, offset)
 	} else {
 		jobs, err = s.jobStore.GetAllJobs(limit, offset)

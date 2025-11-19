@@ -26,6 +26,7 @@ Retrieve a list of job postings with optional filtering and pagination.
 | `offset` | integer | No | 0 | Number of jobs to skip for pagination |
 | `is_active` | boolean | No | all | Filter by active status (`true` or `false`) |
 | `created_after` | ISO 8601 | No | none | Return jobs created after this timestamp |
+| `company` | string | No | none | Filter by company name (exact match) |
 
 **Examples:**
 
@@ -41,6 +42,12 @@ GET /jobs?created_after=2025-11-17T06:00:00Z&is_active=true&limit=500
 
 # Pagination - get next page
 GET /jobs?is_active=true&limit=100&offset=100
+
+# Get jobs for a specific company
+GET /jobs?company=Tech%20AB&limit=50
+
+# Get your company's jobs (for portal users)
+GET /jobs?company=Your%20Company%20Name
 ```
 
 **Success Response:**

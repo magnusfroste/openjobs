@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -159,6 +160,45 @@ func (js *JobStore) GetJobsAfter(timestamp string, limit, offset int) ([]*models
 	url := fmt.Sprintf("%s/rest/v1/job_posts?select=*&is_active=eq.true&created_at=gte.%s&order=created_at.desc&limit=%d&offset=%d",
 		js.supabaseURL, timestamp, limit, offset)
 	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", js.supabaseKey))
+	req.Header.Set("apikey", js.supabaseKey)
+
+	resp, err := js.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("supabase error %d: %s", resp.StatusCode, string(body))
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response: %w", err)
+	}
+
+	var jobs []*models.JobPost
+	err = json.Unmarshal(body, &jobs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
+	}
+
+	return jobs, nil
+}
+
+// GetJobsByCompany retrieves jobs for a specific company
+func (js *JobStore) GetJobsByCompany(company string, limit, offset int) ([]*models.JobPost, error) {
+	// URL encode the company name for the query
+	encodedCompany := url.QueryEscape(company)
+	queryURL := fmt.Sprintf("%s/rest/v1/job_posts?select=*&company=eq.%s&order=posted_date.desc&limit=%d&offset=%d",
+		js.supabaseURL, encodedCompany, limit, offset)
+	req, err := http.NewRequest("GET", queryURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
