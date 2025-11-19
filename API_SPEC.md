@@ -194,6 +194,7 @@ Create a new job posting.
   "salary_currency": "SEK",                    // Optional (SEK, USD, EUR, GBP)
   "is_remote": false,                          // Optional (boolean)
   "url": "https://yourcompany.com/apply",      // Optional
+  "posted_date": "2025-11-15T10:00:00Z",      // Optional (ISO 8601, defaults to now)
   "expires_date": "2025-12-31T23:59:59Z",     // Optional (ISO 8601)
   "requirements": [                            // Optional (array of strings)
     "5+ years React experience",
@@ -348,10 +349,10 @@ Trigger a manual sync of all connectors (admin only).
 | `url` | string | Direct application URL |
 | `employment_type` | string | Type of employment (full-time, part-time, contract) |
 | `experience_level` | string | Required experience level (junior, mid, senior) |
-| `posted_date` | ISO 8601 | When employer originally posted the job |
-| `expires_date` | ISO 8601 | When job posting expires (nullable) |
-| `created_at` | ISO 8601 | When OpenJobs added the job to database |
-| `updated_at` | ISO 8601 | When job was last modified in OpenJobs |
+| `posted_date` | ISO 8601 | When employer posted the job (can be specified, defaults to now) |
+| `expires_date` | ISO 8601 | When job posting expires (optional, nullable) |
+| `created_at` | ISO 8601 | When OpenJobs created this record (auto-set by database) |
+| `updated_at` | ISO 8601 | When job was last modified in OpenJobs (auto-set by database) |
 | `requirements` | string[] | Array of required skills/technologies |
 | `benefits` | string[] | Array of job benefits |
 | `fields` | object | Additional metadata (source-specific, ATS info, tags, etc.) |

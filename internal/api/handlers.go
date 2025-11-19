@@ -670,9 +670,14 @@ func (s *Server) CreateJob(w http.ResponseWriter, r *http.Request) {
 
 	// Set timestamps
 	now := time.Now()
+
+	// posted_date: When the employer posted the job (user can specify, defaults to now)
+	// This is different from created_at (when OpenJobs created the record)
 	if job.PostedDate.IsZero() {
-		job.PostedDate = now
+		job.PostedDate = now // Default to now if not specified
 	}
+
+	// expires_date: User can specify, or leave empty (no expiration)
 
 	// Set default values
 	job.IsActive = true // Jobs posted via API are active by default
