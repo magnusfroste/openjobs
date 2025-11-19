@@ -107,7 +107,7 @@ func (rc *RemotiveConnector) FetchJobs() ([]models.JobPost, error) {
 
 	// Get last sync time for incremental sync (client-side filtering)
 	lastSync := rc.getLastSyncTime()
-	
+
 	// Filter jobs to only new ones (posted after last sync)
 	filteredJobs := []RemotiveJob{}
 	for _, remotiveJob := range remotiveResponse.Jobs {
@@ -116,7 +116,7 @@ func (rc *RemotiveConnector) FetchJobs() ([]models.JobPost, error) {
 			filteredJobs = append(filteredJobs, remotiveJob)
 		}
 	}
-	
+
 	fmt.Printf("📊 Filtered %d jobs from %d total (only new jobs)\n", len(filteredJobs), len(remotiveResponse.Jobs))
 
 	// Transform to our JobPost format
@@ -133,7 +133,7 @@ func (rc *RemotiveConnector) FetchJobs() ([]models.JobPost, error) {
 func (rc *RemotiveConnector) transformRemotiveJob(rj RemotiveJob) models.JobPost {
 	// Parse salary if available
 	salaryMin, salaryMax, currency := rc.parseSalary(rj.Salary)
-	
+
 	job := models.JobPost{
 		ID:              fmt.Sprintf("remotive-%d", rj.ID),
 		Title:           rj.Title,
@@ -144,16 +144,16 @@ func (rc *RemotiveConnector) transformRemotiveJob(rj RemotiveJob) models.JobPost
 		SalaryMin:       salaryMin,
 		SalaryMax:       salaryMax,
 		SalaryCurrency:  currency,
-		IsRemote:        true, // All Remotive jobs are remote
+		IsRemote:        true,   // All Remotive jobs are remote
 		URL:             rj.URL, // Direct application link
 		EmploymentType:  rc.mapEmploymentType(rj.JobType),
 		ExperienceLevel: "Mid-level", // Most remote jobs are for experienced developers
 		PostedDate:      rc.parseRemotiveDate(rj.PublicationDate),
 		ExpiresDate:     rc.parseRemotiveDate(rj.PublicationDate).AddDate(0, 2, 0), // 2 month expiration
-		Requirements:    rc.extractRequirements(rj), // Extract from tags + description
+		Requirements:    rc.extractRequirements(rj),                                // Extract from tags + description
 		Benefits:        []string{"Remote work"},
+		Source:          "remotive", // Primary source column
 		Fields: map[string]interface{}{
-			"source":                      "remotive",
 			"source_url":                  rj.URL,
 			"original_id":                 rj.ID,
 			"candidate_required_location": rj.CandidateRequiredLocation,
@@ -226,13 +226,13 @@ func (rc *RemotiveConnector) SyncJobs() error {
 	if err != nil {
 		// Log failed sync
 		rc.store.LogSync(&models.SyncLog{
-			ConnectorName: rc.GetID(),
-			StartedAt:     startTime,
-			CompletedAt:   time.Now(),
-			JobsFetched:   0,
-			JobsInserted:  0,
+			ConnectorName:  rc.GetID(),
+			StartedAt:      startTime,
+			CompletedAt:    time.Now(),
+			JobsFetched:    0,
+			JobsInserted:   0,
 			JobsDuplicates: 0,
-			Status:        "failed",
+			Status:         "failed",
 		})
 		return fmt.Errorf("failed to fetch jobs from Remotive: %w", err)
 	}
@@ -282,91 +282,92 @@ func (rc *RemotiveConnector) SyncJobs() error {
 	fmt.Printf("🎉 Remotive sync complete! Fetched: %d, Inserted: %d, Duplicates: %d\n", len(jobs), stored, duplicates)
 	return nil
 }
+
 // extractRequirements extracts keywords from title, description, and tags
 func (rc *RemotiveConnector) extractRequirements(rj RemotiveJob) []string {
-requirements := []string{}
-seen := make(map[string]bool)
+	requirements := []string{}
+	seen := make(map[string]bool)
 
-// Add tags first (most reliable)
-for _, tag := range rj.Tags {
-if tag != "" && !seen[tag] {
-requirements = append(requirements, tag)
-seen[tag] = true
-}
-}
+	// Add tags first (most reliable)
+	for _, tag := range rj.Tags {
+		if tag != "" && !seen[tag] {
+			requirements = append(requirements, tag)
+			seen[tag] = true
+		}
+	}
 
-// Extract from title and description
-text := strings.ToLower(rj.Title + " " + rj.Description)
+	// Extract from title and description
+	text := strings.ToLower(rj.Title + " " + rj.Description)
 
-// Common tech skills
-keywords := []string{
-"Java", "Python", "JavaScript", "TypeScript", "C++", "C#", ".NET", "PHP", "Ruby", "Go", "Rust", "Swift", "Kotlin",
-"React", "Angular", "Vue", "Node.js", "Spring", "Django", "Flask", "Express", "Laravel",
-"Docker", "Kubernetes", "AWS", "Azure", "GCP", "CI/CD", "Jenkins", "Git", "Linux",
-"SQL", "PostgreSQL", "MySQL", "MongoDB", "Redis", "Elasticsearch",
-"API", "REST", "GraphQL", "Microservices", "Agile", "Scrum",
-}
+	// Common tech skills
+	keywords := []string{
+		"Java", "Python", "JavaScript", "TypeScript", "C++", "C#", ".NET", "PHP", "Ruby", "Go", "Rust", "Swift", "Kotlin",
+		"React", "Angular", "Vue", "Node.js", "Spring", "Django", "Flask", "Express", "Laravel",
+		"Docker", "Kubernetes", "AWS", "Azure", "GCP", "CI/CD", "Jenkins", "Git", "Linux",
+		"SQL", "PostgreSQL", "MySQL", "MongoDB", "Redis", "Elasticsearch",
+		"API", "REST", "GraphQL", "Microservices", "Agile", "Scrum",
+	}
 
-for _, keyword := range keywords {
-if strings.Contains(text, strings.ToLower(keyword)) && !seen[keyword] {
-requirements = append(requirements, keyword)
-seen[keyword] = true
-}
-}
+	for _, keyword := range keywords {
+		if strings.Contains(text, strings.ToLower(keyword)) && !seen[keyword] {
+			requirements = append(requirements, keyword)
+			seen[keyword] = true
+		}
+	}
 
-// Add category if not already included
-if rj.Category != "" && !seen[rj.Category] {
-requirements = append(requirements, rj.Category)
-seen[rj.Category] = true
-}
+	// Add category if not already included
+	if rj.Category != "" && !seen[rj.Category] {
+		requirements = append(requirements, rj.Category)
+		seen[rj.Category] = true
+	}
 
-return requirements
+	return requirements
 }
 
 // parseSalary parses salary string to extract min, max, and currency
 func (rc *RemotiveConnector) parseSalary(salaryStr string) (*int, *int, string) {
-if salaryStr == "" {
-return nil, nil, "USD"
-}
+	if salaryStr == "" {
+		return nil, nil, "USD"
+	}
 
-// Detect currency
-currency := "USD"
-if strings.Contains(salaryStr, "€") || strings.Contains(salaryStr, "EUR") {
-currency = "EUR"
-} else if strings.Contains(salaryStr, "£") || strings.Contains(salaryStr, "GBP") {
-currency = "GBP"
-}
+	// Detect currency
+	currency := "USD"
+	if strings.Contains(salaryStr, "€") || strings.Contains(salaryStr, "EUR") {
+		currency = "EUR"
+	} else if strings.Contains(salaryStr, "£") || strings.Contains(salaryStr, "GBP") {
+		currency = "GBP"
+	}
 
-// Remove currency symbols and common words
-cleanStr := strings.ReplaceAll(salaryStr, "$", "")
-cleanStr = strings.ReplaceAll(cleanStr, "€", "")
-cleanStr = strings.ReplaceAll(cleanStr, "£", "")
-cleanStr = strings.ReplaceAll(cleanStr, "USD", "")
-cleanStr = strings.ReplaceAll(cleanStr, "EUR", "")
-cleanStr = strings.ReplaceAll(cleanStr, "GBP", "")
-cleanStr = strings.ReplaceAll(cleanStr, "k", "000")
-cleanStr = strings.ReplaceAll(cleanStr, "K", "000")
-cleanStr = strings.ReplaceAll(cleanStr, ",", "")
-cleanStr = strings.ReplaceAll(cleanStr, " ", "")
+	// Remove currency symbols and common words
+	cleanStr := strings.ReplaceAll(salaryStr, "$", "")
+	cleanStr = strings.ReplaceAll(cleanStr, "€", "")
+	cleanStr = strings.ReplaceAll(cleanStr, "£", "")
+	cleanStr = strings.ReplaceAll(cleanStr, "USD", "")
+	cleanStr = strings.ReplaceAll(cleanStr, "EUR", "")
+	cleanStr = strings.ReplaceAll(cleanStr, "GBP", "")
+	cleanStr = strings.ReplaceAll(cleanStr, "k", "000")
+	cleanStr = strings.ReplaceAll(cleanStr, "K", "000")
+	cleanStr = strings.ReplaceAll(cleanStr, ",", "")
+	cleanStr = strings.ReplaceAll(cleanStr, " ", "")
 
-// Try to find range (e.g., "50000-80000" or "50-80k")
-if strings.Contains(cleanStr, "-") {
-parts := strings.Split(cleanStr, "-")
-if len(parts) == 2 {
-var min, max int
-if m, err := strconv.Atoi(strings.TrimSpace(parts[0])); err == nil {
-min = m
-}
-if m, err := strconv.Atoi(strings.TrimSpace(parts[1])); err == nil {
-max = m
-}
-if min > 0 && max > 0 {
-return &min, &max, currency
-}
-}
-}
+	// Try to find range (e.g., "50000-80000" or "50-80k")
+	if strings.Contains(cleanStr, "-") {
+		parts := strings.Split(cleanStr, "-")
+		if len(parts) == 2 {
+			var min, max int
+			if m, err := strconv.Atoi(strings.TrimSpace(parts[0])); err == nil {
+				min = m
+			}
+			if m, err := strconv.Atoi(strings.TrimSpace(parts[1])); err == nil {
+				max = m
+			}
+			if min > 0 && max > 0 {
+				return &min, &max, currency
+			}
+		}
+	}
 
-return nil, nil, currency
+	return nil, nil, currency
 }
 
 // getLastSyncTime retrieves the timestamp of the most recent job in database
@@ -376,7 +377,7 @@ func (rc *RemotiveConnector) getLastSyncTime() time.Time {
 		fmt.Println("📅 No previous Remotive jobs found - processing all jobs")
 		return time.Time{}
 	}
-	
+
 	fmt.Printf("📅 Last Remotive job in database: %s (posted: %s)\n", job.Title, job.PostedDate.Format("2006-01-02"))
 	return job.PostedDate
 }

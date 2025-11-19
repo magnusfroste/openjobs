@@ -95,7 +95,7 @@ func (rc *RemoteOKConnector) FetchJobs() ([]models.JobPost, error) {
 
 	// Get last sync time for incremental sync
 	lastSync := rc.getLastSyncTime()
-	
+
 	// Filter jobs to only new ones (posted after last sync)
 	filteredJobs := []RemoteOKJob{}
 	for _, remoteOKJob := range remoteOKJobs {
@@ -104,7 +104,7 @@ func (rc *RemoteOKConnector) FetchJobs() ([]models.JobPost, error) {
 			filteredJobs = append(filteredJobs, remoteOKJob)
 		}
 	}
-	
+
 	fmt.Printf("📊 Filtered %d jobs from %d total (only new jobs)\n", len(filteredJobs), len(remoteOKJobs))
 
 	// Transform to our JobPost format
@@ -121,7 +121,7 @@ func (rc *RemoteOKConnector) FetchJobs() ([]models.JobPost, error) {
 func (rc *RemoteOKConnector) transformRemoteOKJob(rj RemoteOKJob) models.JobPost {
 	// Extract URL
 	url := rc.extractURL(rj)
-	
+
 	job := models.JobPost{
 		ID:              fmt.Sprintf("remoteok-%s", rj.ID),
 		Title:           rj.Position,
@@ -138,10 +138,10 @@ func (rc *RemoteOKConnector) transformRemoteOKJob(rj RemoteOKJob) models.JobPost
 		ExperienceLevel: "Mid-level", // Most remote jobs are for experienced developers
 		PostedDate:      rc.parseRemoteOKDate(rj.Date),
 		ExpiresDate:     rc.parseRemoteOKDate(rj.Date).AddDate(0, 2, 0), // 2 month expiration
-		Requirements:    rc.extractRequirements(rj), // Tags + keyword extraction
+		Requirements:    rc.extractRequirements(rj),                     // Tags + keyword extraction
 		Benefits:        []string{"Remote work"},
+		Source:          "remoteok", // Primary source column
 		Fields: map[string]interface{}{
-			"source":       "remoteok",
 			"source_url":   url,
 			"original_id":  rj.ID,
 			"slug":         rj.Slug,
@@ -211,13 +211,13 @@ func (rc *RemoteOKConnector) SyncJobs() error {
 	if err != nil {
 		// Log failed sync
 		rc.store.LogSync(&models.SyncLog{
-			ConnectorName: rc.GetID(),
-			StartedAt:     startTime,
-			CompletedAt:   time.Now(),
-			JobsFetched:   0,
-			JobsInserted:  0,
+			ConnectorName:  rc.GetID(),
+			StartedAt:      startTime,
+			CompletedAt:    time.Now(),
+			JobsFetched:    0,
+			JobsInserted:   0,
 			JobsDuplicates: 0,
-			Status:        "failed",
+			Status:         "failed",
 		})
 		return fmt.Errorf("failed to fetch jobs from RemoteOK: %w", err)
 	}
@@ -270,37 +270,37 @@ func (rc *RemoteOKConnector) SyncJobs() error {
 
 // extractRequirements extracts keywords from tags, title, and description
 func (rc *RemoteOKConnector) extractRequirements(rj RemoteOKJob) []string {
-requirements := []string{}
-seen := make(map[string]bool)
+	requirements := []string{}
+	seen := make(map[string]bool)
 
-// Add tags first (most reliable)
-for _, tag := range rj.Tags {
-if tag != "" && !seen[tag] {
-requirements = append(requirements, tag)
-seen[tag] = true
-}
-}
+	// Add tags first (most reliable)
+	for _, tag := range rj.Tags {
+		if tag != "" && !seen[tag] {
+			requirements = append(requirements, tag)
+			seen[tag] = true
+		}
+	}
 
-// Extract from title and description
-text := strings.ToLower(rj.Position + " " + rj.Description)
+	// Extract from title and description
+	text := strings.ToLower(rj.Position + " " + rj.Description)
 
-// Common tech skills
-keywords := []string{
-"Java", "Python", "JavaScript", "TypeScript", "C++", "C#", ".NET", "PHP", "Ruby", "Go", "Rust", "Swift", "Kotlin",
-"React", "Angular", "Vue", "Node.js", "Spring", "Django", "Flask", "Express", "Laravel",
-"Docker", "Kubernetes", "AWS", "Azure", "GCP", "CI/CD", "Jenkins", "Git", "Linux",
-"SQL", "PostgreSQL", "MySQL", "MongoDB", "Redis", "Elasticsearch",
-"API", "REST", "GraphQL", "Microservices", "Agile", "Scrum",
-}
+	// Common tech skills
+	keywords := []string{
+		"Java", "Python", "JavaScript", "TypeScript", "C++", "C#", ".NET", "PHP", "Ruby", "Go", "Rust", "Swift", "Kotlin",
+		"React", "Angular", "Vue", "Node.js", "Spring", "Django", "Flask", "Express", "Laravel",
+		"Docker", "Kubernetes", "AWS", "Azure", "GCP", "CI/CD", "Jenkins", "Git", "Linux",
+		"SQL", "PostgreSQL", "MySQL", "MongoDB", "Redis", "Elasticsearch",
+		"API", "REST", "GraphQL", "Microservices", "Agile", "Scrum",
+	}
 
-for _, keyword := range keywords {
-if strings.Contains(text, strings.ToLower(keyword)) && !seen[keyword] {
-requirements = append(requirements, keyword)
-seen[keyword] = true
-}
-}
+	for _, keyword := range keywords {
+		if strings.Contains(text, strings.ToLower(keyword)) && !seen[keyword] {
+			requirements = append(requirements, keyword)
+			seen[keyword] = true
+		}
+	}
 
-return requirements
+	return requirements
 }
 
 // getLastSyncTime retrieves the timestamp of the most recent job in database
@@ -310,7 +310,7 @@ func (rc *RemoteOKConnector) getLastSyncTime() time.Time {
 		fmt.Println("📅 No previous RemoteOK jobs found - processing all jobs")
 		return time.Time{}
 	}
-	
+
 	fmt.Printf("📅 Last RemoteOK job in database: %s (posted: %s)\n", job.Title, job.PostedDate.Format("2006-01-02"))
 	return job.PostedDate
 }

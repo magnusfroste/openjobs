@@ -104,7 +104,7 @@ func (ec *EURESConnector) FetchJobs() ([]models.JobPost, error) {
 		}
 		allJobs = append(allJobs, countryJobs...)
 		fmt.Printf("   ✅ Fetched %d jobs from %s\n", len(countryJobs), country)
-		
+
 		// Rate limiting between countries
 		time.Sleep(1 * time.Second)
 	}
@@ -121,11 +121,11 @@ func (ec *EURESConnector) FetchJobs() ([]models.JobPost, error) {
 func (ec *EURESConnector) fetchJobsFromCountry(country string) ([]models.JobPost, error) {
 	// Get last sync time for incremental sync
 	lastSync := ec.getLastSyncTime()
-	
+
 	// Build API URL with credentials - Adzuna API format
 	url := fmt.Sprintf("%s/%s/search/1?app_id=%s&app_key=%s&results_per_page=100&what=developer+OR+programmer+OR+software",
 		ec.baseURL, country, ec.appID, ec.appKey)
-	
+
 	// Add date filter if we have a last sync time
 	if !lastSync.IsZero() {
 		// Calculate days since last sync
@@ -195,8 +195,8 @@ func (ec *EURESConnector) fetchDemoJobs() []models.JobPost {
 			ExpiresDate:     time.Now().AddDate(0, 1, 0),
 			Requirements:    []string{"5+ years experience", "Go, Python, or Java", "Cloud platforms (AWS/GCP)"},
 			Benefits:        []string{"Health insurance", "Flexible hours", "Remote work options"},
+			Source:          "eures", // Primary source column
 			Fields: map[string]interface{}{
-				"source":      "demo-eures",
 				"source_url":  "https://example.com/job/001",
 				"original_id": "001",
 				"country":     "Sweden",
@@ -218,8 +218,8 @@ func (ec *EURESConnector) fetchDemoJobs() []models.JobPost {
 			ExpiresDate:     time.Now().AddDate(0, 1, 0),
 			Requirements:    []string{"3+ years experience", "React, Node.js", "PostgreSQL"},
 			Benefits:        []string{"Stock options", "Learning budget", "Team events"},
+			Source:          "eures",
 			Fields: map[string]interface{}{
-				"source":      "demo-eures",
 				"source_url":  "https://example.com/job/002",
 				"original_id": "002",
 				"country":     "Denmark",
@@ -240,8 +240,8 @@ func (ec *EURESConnector) fetchDemoJobs() []models.JobPost {
 			ExpiresDate:     time.Now().AddDate(0, 1, 0),
 			Requirements:    []string{"4+ years DevOps experience", "Kubernetes, Docker", "AWS/Azure/GCP"},
 			Benefits:        []string{"Health insurance", "Professional development", "Flexible work"},
+			Source:          "eures",
 			Fields: map[string]interface{}{
-				"source":      "demo-eures",
 				"source_url":  "https://example.com/job/003",
 				"original_id": "003",
 				"country":     "Finland",
@@ -267,10 +267,10 @@ func (ec *EURESConnector) transformAdzunaJob(aj AdzunaJob) models.JobPost {
 		EmploymentType:  ec.mapEmploymentType(aj.ContractTime),
 		ExperienceLevel: "Mid-level", // Adzuna doesn't provide experience level
 		PostedDate:      ec.parseAdzunaDate(aj.Created),
-		ExpiresDate:     ec.parseAdzunaDate(aj.Created).AddDate(0, 1, 0), // Default 1 month expiry
+		ExpiresDate:     ec.parseAdzunaDate(aj.Created).AddDate(0, 1, 0),          // Default 1 month expiry
 		Requirements:    ec.extractRequirementsFromText(aj.Title, aj.Description), // Extract from text
+		Source:          "adzuna",
 		Fields: map[string]interface{}{
-			"source":        "adzuna",
 			"source_url":    aj.RedirectURL,
 			"original_id":   aj.ID,
 			"contract_type": aj.ContractType,
@@ -293,7 +293,7 @@ func (ec *EURESConnector) transformAdzunaJob(aj AdzunaJob) models.JobPost {
 			job.SalaryMax = &salaryMax
 		}
 		job.SalaryCurrency = "EUR"
-		
+
 		// Also create human-readable string
 		if aj.SalaryMin > 0 && aj.SalaryMax > 0 {
 			job.Salary = fmt.Sprintf("€%.0f - €%.0f", aj.SalaryMin, aj.SalaryMax)
@@ -432,10 +432,10 @@ func (ec *EURESConnector) SyncJobs() error {
 func (ec *EURESConnector) extractRequirementsFromText(title, description string) []string {
 	requirements := []string{}
 	seen := make(map[string]bool)
-	
+
 	// Combine title and description for searching
 	text := strings.ToLower(title + " " + description)
-	
+
 	// Common tech skills and keywords
 	keywords := []string{
 		// Programming languages
@@ -449,7 +449,7 @@ func (ec *EURESConnector) extractRequirementsFromText(title, description string)
 		// Other skills
 		"API", "REST", "GraphQL", "Microservices", "Agile", "Scrum",
 	}
-	
+
 	// Extract keywords found in text
 	for _, keyword := range keywords {
 		if strings.Contains(text, strings.ToLower(keyword)) {
@@ -459,7 +459,7 @@ func (ec *EURESConnector) extractRequirementsFromText(title, description string)
 			}
 		}
 	}
-	
+
 	// Extract experience level from description
 	if strings.Contains(text, "senior") || strings.Contains(text, "lead") {
 		if !seen["Senior level"] {
@@ -472,7 +472,7 @@ func (ec *EURESConnector) extractRequirementsFromText(title, description string)
 			seen["Junior level"] = true
 		}
 	}
-	
+
 	// Extract years of experience
 	if strings.Contains(text, "years experience") || strings.Contains(text, "years of experience") {
 		if !seen["Experience required"] {
@@ -480,7 +480,7 @@ func (ec *EURESConnector) extractRequirementsFromText(title, description string)
 			seen["Experience required"] = true
 		}
 	}
-	
+
 	return requirements
 }
 
@@ -491,7 +491,7 @@ func (ec *EURESConnector) getLastSyncTime() time.Time {
 		fmt.Println("📅 No previous EURES jobs found - fetching all jobs")
 		return time.Time{}
 	}
-	
+
 	fmt.Printf("📅 Last EURES job in database: %s (posted: %s)\n", job.Title, job.PostedDate.Format("2006-01-02"))
 	return job.PostedDate
 }
