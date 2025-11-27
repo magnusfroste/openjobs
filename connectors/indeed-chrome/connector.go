@@ -42,7 +42,7 @@ func (icc *IndeedChromeConnector) GetName() string {
 // FetchJobs scrapes job listings from Indeed.se using headless Chrome
 func (icc *IndeedChromeConnector) FetchJobs() ([]models.JobPost, error) {
 	allJobs := []models.JobPost{}
-	
+
 	// Search queries for diverse coverage
 	queries := []string{
 		"developer",
@@ -52,10 +52,10 @@ func (icc *IndeedChromeConnector) FetchJobs() ([]models.JobPost, error) {
 		"sales",
 		"marketing",
 	}
-	
+
 	// Get existing job IDs for incremental sync (database-based)
 	existingIDs := icc.getExistingJobIDs()
-	
+
 	// Create shared Chrome context for all pages (reuse to save memory)
 	opts := []chromedp.ExecAllocatorOption{
 		chromedp.NoSandbox,
@@ -65,19 +65,19 @@ func (icc *IndeedChromeConnector) FetchJobs() ([]models.JobPost, error) {
 		chromedp.Flag("headless", true),
 		chromedp.ExecPath("/usr/bin/chromium-browser"),
 	}
-	
+
 	allocCtx, allocCancel := chromedp.NewExecAllocator(context.Background(), opts...)
 	defer allocCancel()
-	
+
 	browserCtx, browserCancel := chromedp.NewContext(allocCtx)
 	defer browserCancel()
-	
+
 	for _, query := range queries {
 		fmt.Printf("🔍 Scraping Indeed with Chrome for: '%s'\n", query)
-		
+
 		duplicateCount := 0
 		maxDuplicatesBeforeStop := 20 // Stop if we see 20 duplicates in a row
-		
+
 		// Scrape first 10 pages (0-90) = 100 jobs per query
 		// Since we run once per day, maximize coverage
 		for start := 0; start < 100; start += 10 {
@@ -86,38 +86,38 @@ func (icc *IndeedChromeConnector) FetchJobs() ([]models.JobPost, error) {
 				fmt.Printf("⚠️  Error scraping page %d for query '%s': %v\n", start/10+1, query, err)
 				continue
 			}
-			
+
 			if len(jobs) == 0 {
 				fmt.Printf("   ℹ️  No more results for '%s' at page %d\n", query, start/10+1)
 				break // No more results
 			}
-			
+
 			newJobsOnPage := 0
 			// Filter to only new jobs (check against existing IDs)
 			for _, job := range jobs {
 				if !existingIDs[job.ID] {
 					// This is a new job - fetch full description
 					fullJob := icc.createJobPost(browserCtx, map[string]string{
-						"jobKey":  strings.TrimPrefix(job.ID, "indeed-chrome-"),
-						"title":   job.Title,
-						"company": job.Company,
+						"jobKey":   strings.TrimPrefix(job.ID, "indeed-chrome-"),
+						"title":    job.Title,
+						"company":  job.Company,
 						"location": job.Location,
-						"snippet": job.Description,
-						"salary":  job.Salary,
+						"snippet":  job.Description,
+						"salary":   job.Salary,
 					}, true) // true = fetch full description
-					
+
 					if fullJob != nil {
 						allJobs = append(allJobs, *fullJob)
 						newJobsOnPage++
 					}
 				}
 			}
-			
+
 			// Early stopping: if we found no new jobs on this page, increment duplicate counter
 			if newJobsOnPage == 0 {
 				duplicateCount += len(jobs)
 				fmt.Printf("   ℹ️  Page %d: All %d jobs already seen (total duplicates: %d)\n", start/10+1, len(jobs), duplicateCount)
-				
+
 				// Stop if we've seen too many duplicates (means we've caught up)
 				if duplicateCount >= maxDuplicatesBeforeStop {
 					fmt.Printf("   ✅ Stopping '%s' - caught up with existing jobs\n", query)
@@ -127,49 +127,49 @@ func (icc *IndeedChromeConnector) FetchJobs() ([]models.JobPost, error) {
 				duplicateCount = 0 // Reset counter if we found new jobs
 				fmt.Printf("   ✅ Page %d: Found %d new jobs\n", start/10+1, newJobsOnPage)
 			}
-			
+
 			// Rate limiting - be respectful!
 			time.Sleep(icc.rateLimit)
 		}
 	}
-	
+
 	// Deduplicate by job key
 	uniqueJobs := icc.deduplicateJobs(allJobs)
-	
+
 	fmt.Printf("📊 Scraped %d unique jobs from Indeed (filtered from %d total)\n", len(uniqueJobs), len(allJobs))
-	
+
 	return uniqueJobs, nil
 }
 
 // scrapePage scrapes a single search results page using Chrome
 func (icc *IndeedChromeConnector) scrapePage(browserCtx context.Context, query string, start int) ([]models.JobPost, error) {
 	jobs := []models.JobPost{}
-	
+
 	// Build search URL
 	searchURL := fmt.Sprintf("%s/jobs?q=%s&l=Sverige&start=%d",
 		icc.baseURL,
 		strings.ReplaceAll(query, " ", "+"),
 		start,
 	)
-	
+
 	// Create timeout context for this page
 	ctx, timeoutCancel := context.WithTimeout(browserCtx, 120*time.Second)
 	defer timeoutCancel()
-	
+
 	// Variables to store scraped data
 	var jobCards []map[string]string
-	
+
 	// Run Chrome automation
 	err := chromedp.Run(ctx,
 		// Navigate to search page
 		chromedp.Navigate(searchURL),
-		
+
 		// Wait for job cards to load
 		chromedp.WaitVisible(`div.job_seen_beacon, td.resultContent`, chromedp.ByQuery),
-		
+
 		// Wait a bit for dynamic content
 		chromedp.Sleep(2*time.Second),
-		
+
 		// Extract job data using JavaScript
 		chromedp.Evaluate(`
 			(() => {
@@ -235,13 +235,13 @@ func (icc *IndeedChromeConnector) scrapePage(browserCtx context.Context, query s
 			})()
 		`, &jobCards),
 	)
-	
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to scrape page with Chrome: %w", err)
 	}
-	
+
 	fmt.Printf("   📄 Found %d job cards on page\n", len(jobCards))
-	
+
 	// Convert to JobPost objects (without full descriptions yet)
 	for _, card := range jobCards {
 		job := icc.createJobPost(browserCtx, card, false) // false = don't fetch description yet
@@ -249,7 +249,7 @@ func (icc *IndeedChromeConnector) scrapePage(browserCtx context.Context, query s
 			jobs = append(jobs, *job)
 		}
 	}
-	
+
 	return jobs, nil
 }
 
@@ -261,14 +261,14 @@ func (icc *IndeedChromeConnector) createJobPost(browserCtx context.Context, card
 	location := card["location"]
 	snippet := card["snippet"]
 	salary := card["salary"]
-	
+
 	if title == "" || jobKey == "" {
 		return nil
 	}
-	
+
 	// Build job URL
 	jobURL := fmt.Sprintf("%s/viewjob?jk=%s", icc.baseURL, jobKey)
-	
+
 	// Optionally fetch full description from job page
 	description := snippet
 	if fetchDescription {
@@ -278,12 +278,12 @@ func (icc *IndeedChromeConnector) createJobPost(browserCtx context.Context, card
 			fmt.Printf("   ✅ Fetched full description for: %s\n", title)
 		}
 	}
-	
+
 	// Estimate posted date (Indeed doesn't always show exact date)
 	// Use a heuristic: jobs are likely posted within last 30 days
 	// For incremental sync, we'll check against database ID instead
 	postedDate := time.Now().AddDate(0, 0, -7) // Assume posted within last week
-	
+
 	// Create JobPost
 	job := models.JobPost{
 		ID:              fmt.Sprintf("indeed-chrome-%s", jobKey),
@@ -296,6 +296,7 @@ func (icc *IndeedChromeConnector) createJobPost(browserCtx context.Context, card
 		SalaryMax:       nil,
 		SalaryCurrency:  "SEK",
 		IsRemote:        icc.detectRemote(title, description, location),
+		IsActive:        true, // All new jobs are active by default
 		URL:             jobURL,
 		EmploymentType:  "Full-time",
 		ExperienceLevel: "Mid-level",
@@ -312,26 +313,26 @@ func (icc *IndeedChromeConnector) createJobPost(browserCtx context.Context, card
 			"method":      "headless_chrome",
 		},
 	}
-	
+
 	return &job
 }
 
 // scrapeJobDescription fetches the full job description from individual job page using Chrome
 func (icc *IndeedChromeConnector) scrapeJobDescription(browserCtx context.Context, jobURL, jobKey string) string {
 	description := ""
-	
+
 	// Create timeout context for this job page
 	ctx, timeoutCancel := context.WithTimeout(browserCtx, 60*time.Second)
 	defer timeoutCancel()
-	
+
 	// Run Chrome automation
 	err := chromedp.Run(ctx,
 		// Navigate to job page
 		chromedp.Navigate(jobURL),
-		
+
 		// Wait for description to load
 		chromedp.WaitVisible(`div#jobDescriptionText, div.jobsearch-jobDescriptionText`, chromedp.ByQuery),
-		
+
 		// Extract description text
 		chromedp.Evaluate(`
 			(() => {
@@ -340,12 +341,12 @@ func (icc *IndeedChromeConnector) scrapeJobDescription(browserCtx context.Contex
 			})()
 		`, &description),
 	)
-	
+
 	if err != nil {
 		fmt.Printf("   ⚠️  Failed to fetch job page %s: %v\n", jobKey, err)
 		return ""
 	}
-	
+
 	return description
 }
 
@@ -354,14 +355,14 @@ func (icc *IndeedChromeConnector) cleanText(text string) string {
 	// Remove HTML tags
 	re := regexp.MustCompile(`<[^>]*>`)
 	text = re.ReplaceAllString(text, "")
-	
+
 	// Trim whitespace
 	text = strings.TrimSpace(text)
-	
+
 	// Remove excessive newlines
 	re = regexp.MustCompile(`\n{3,}`)
 	text = re.ReplaceAllString(text, "\n\n")
-	
+
 	return text
 }
 
@@ -371,31 +372,31 @@ func (icc *IndeedChromeConnector) formatLocation(location string) string {
 	if location == "" {
 		return "Sweden"
 	}
-	
+
 	// Add Sweden if not present
 	if !strings.Contains(strings.ToLower(location), "sweden") &&
 		!strings.Contains(strings.ToLower(location), "sverige") {
 		location = location + ", Sweden"
 	}
-	
+
 	return location
 }
 
 // detectRemote checks if job is remote
 func (icc *IndeedChromeConnector) detectRemote(title, description, location string) bool {
 	text := strings.ToLower(title + " " + description + " " + location)
-	
+
 	remoteKeywords := []string{
 		"remote", "distans", "hemarbete", "hemifrån",
 		"work from home", "wfh", "anywhere",
 	}
-	
+
 	for _, keyword := range remoteKeywords {
 		if strings.Contains(text, keyword) {
 			return true
 		}
 	}
-	
+
 	return false
 }
 
@@ -403,9 +404,9 @@ func (icc *IndeedChromeConnector) detectRemote(title, description, location stri
 func (icc *IndeedChromeConnector) extractRequirements(title, description string) []string {
 	requirements := []string{}
 	seen := make(map[string]bool)
-	
+
 	text := strings.ToLower(title + " " + description)
-	
+
 	// Common tech skills
 	keywords := []string{
 		"Java", "Python", "JavaScript", "TypeScript", "C++", "C#", ".NET", "PHP", "Ruby", "Go", "Rust", "Swift", "Kotlin",
@@ -415,14 +416,14 @@ func (icc *IndeedChromeConnector) extractRequirements(title, description string)
 		"API", "REST", "GraphQL", "Microservices", "Agile", "Scrum",
 		"Swedish", "English", "B2B", "B2C", "SaaS",
 	}
-	
+
 	for _, keyword := range keywords {
 		if strings.Contains(text, strings.ToLower(keyword)) && !seen[keyword] {
 			requirements = append(requirements, keyword)
 			seen[keyword] = true
 		}
 	}
-	
+
 	return requirements
 }
 
@@ -430,14 +431,14 @@ func (icc *IndeedChromeConnector) extractRequirements(title, description string)
 func (icc *IndeedChromeConnector) deduplicateJobs(jobs []models.JobPost) []models.JobPost {
 	seen := make(map[string]bool)
 	unique := []models.JobPost{}
-	
+
 	for _, job := range jobs {
 		if !seen[job.ID] {
 			seen[job.ID] = true
 			unique = append(unique, job)
 		}
 	}
-	
+
 	return unique
 }
 
@@ -446,24 +447,24 @@ func (icc *IndeedChromeConnector) SyncJobs() error {
 	startTime := time.Now()
 	fmt.Println("🔄 Starting Indeed Sweden Chrome scraping sync...")
 	fmt.Println("🌐 Using headless Chrome - bypasses Cloudflare!")
-	
+
 	jobs, err := icc.FetchJobs()
 	if err != nil {
 		// Log failed sync
 		icc.store.LogSync(&models.SyncLog{
-			ConnectorName: icc.GetID(),
-			StartedAt:     startTime,
-			CompletedAt:   time.Now(),
-			JobsFetched:   0,
-			JobsInserted:  0,
+			ConnectorName:  icc.GetID(),
+			StartedAt:      startTime,
+			CompletedAt:    time.Now(),
+			JobsFetched:    0,
+			JobsInserted:   0,
 			JobsDuplicates: 0,
-			Status:        "failed",
+			Status:         "failed",
 		})
 		return fmt.Errorf("failed to scrape jobs from Indeed: %w", err)
 	}
-	
+
 	fmt.Printf("📥 Scraped %d jobs from Indeed Sweden\n", len(jobs))
-	
+
 	stored := 0
 	duplicates := 0
 	for _, job := range jobs {
@@ -473,24 +474,24 @@ func (icc *IndeedChromeConnector) SyncJobs() error {
 			fmt.Printf("⚠️  Error checking existing job %s: %v\n", job.ID, err)
 			continue
 		}
-		
+
 		if existing != nil {
 			// Job already exists, skip
 			duplicates++
 			continue
 		}
-		
+
 		// Store new job
 		err = icc.store.CreateJob(&job)
 		if err != nil {
 			fmt.Printf("❌ Error storing job %s: %v\n", job.ID, err)
 			continue
 		}
-		
+
 		stored++
 		fmt.Printf("✅ Stored job: %s at %s (%s)\n", job.Title, job.Company, job.Location)
 	}
-	
+
 	// Log successful sync
 	if err := icc.store.LogSync(&models.SyncLog{
 		ConnectorName:  icc.GetID(),
@@ -503,7 +504,7 @@ func (icc *IndeedChromeConnector) SyncJobs() error {
 	}); err != nil {
 		fmt.Printf("⚠️  Failed to log sync: %v\n", err)
 	}
-	
+
 	fmt.Printf("🎉 Indeed Chrome scraping sync complete! Fetched: %d, Inserted: %d, Duplicates: %d\n", len(jobs), stored, duplicates)
 	return nil
 }
@@ -513,11 +514,11 @@ func (icc *IndeedChromeConnector) getExistingJobIDs() map[string]bool {
 	// This would need a new method in storage to get all IDs efficiently
 	// For now, use a simple approach
 	existingIDs := make(map[string]bool)
-	
+
 	// Note: In production, you'd want to add a method to JobStore like:
 	// jobs, err := icc.store.GetJobIDsByPrefix("indeed-chrome-")
 	// For now, we'll rely on the database check in SyncJobs
-	
+
 	fmt.Println("📅 Using database-based incremental sync")
 	return existingIDs
 }

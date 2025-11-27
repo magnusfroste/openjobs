@@ -296,6 +296,7 @@ func (ojc *OffentligaJobbConnector) createJobPost(browserCtx context.Context, ca
 		SalaryMax:       nil,
 		SalaryCurrency:  "SEK",
 		IsRemote:        ojc.detectRemote(title, description, location),
+		IsActive:        true, // All new jobs are active by default
 		URL:             jobURL,
 		EmploymentType:  "Full-time",
 		ExperienceLevel: "Mid-level",

@@ -211,6 +211,7 @@ func (ic *IndeedConnector) transformIndeedJob(ij IndeedJob) models.JobPost {
 		SalaryMax:       nil,
 		SalaryCurrency:  "SEK", // Sweden
 		IsRemote:        ic.detectRemote(ij),
+		IsActive:        true, // All new jobs are active by default
 		URL:             ij.URL,
 		EmploymentType:  "Full-time", // Indeed doesn't specify in API
 		ExperienceLevel: "Mid-level",

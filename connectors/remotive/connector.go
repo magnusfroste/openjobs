@@ -145,6 +145,7 @@ func (rc *RemotiveConnector) transformRemotiveJob(rj RemotiveJob) models.JobPost
 		SalaryMax:       salaryMax,
 		SalaryCurrency:  currency,
 		IsRemote:        true,   // All Remotive jobs are remote
+		IsActive:        true,   // All new jobs are active by default
 		URL:             rj.URL, // Direct application link
 		EmploymentType:  rc.mapEmploymentType(rj.JobType),
 		ExperienceLevel: "Mid-level", // Most remote jobs are for experienced developers

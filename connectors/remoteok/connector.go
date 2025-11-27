@@ -133,6 +133,7 @@ func (rc *RemoteOKConnector) transformRemoteOKJob(rj RemoteOKJob) models.JobPost
 		SalaryMax:       nil,
 		SalaryCurrency:  "USD",
 		IsRemote:        true, // ⭐ All RemoteOK jobs are remote
+		IsActive:        true, // All new jobs are active by default
 		URL:             url,  // ⭐ Direct application URL
 		EmploymentType:  "Full-time",
 		ExperienceLevel: "Mid-level", // Most remote jobs are for experienced developers

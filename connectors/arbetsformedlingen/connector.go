@@ -260,6 +260,7 @@ func (ac *ArbetsformedlingenConnector) transformAFJob(af AFJob) models.JobPost {
 		SalaryMax:       salaryMax,
 		SalaryCurrency:  currency,
 		IsRemote:        isRemote,
+		IsActive:        true, // All new jobs are active by default
 		URL:             url,
 		EmploymentType:  ac.mapEmploymentType(af.EmploymentType.Label),
 		ExperienceLevel: ac.mapExperienceLevel(af.ExperienceRequired),

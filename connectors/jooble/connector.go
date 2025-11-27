@@ -39,16 +39,16 @@ type JoobleResponse struct {
 
 // JoobleJob represents a job from Jooble API
 type JoobleJob struct {
-	Title       string `json:"title"`
-	Location    string `json:"location"`
-	Snippet     string `json:"snippet"`
-	Salary      string `json:"salary"`
-	Source      string `json:"source"`
-	Type        string `json:"type"`
-	Link        string `json:"link"`
-	Company     string `json:"company"`
-	Updated     string `json:"updated"`
-	ID          int64  `json:"id"` // Changed from string to int64 - Jooble API returns numeric IDs
+	Title    string `json:"title"`
+	Location string `json:"location"`
+	Snippet  string `json:"snippet"`
+	Salary   string `json:"salary"`
+	Source   string `json:"source"`
+	Type     string `json:"type"`
+	Link     string `json:"link"`
+	Company  string `json:"company"`
+	Updated  string `json:"updated"`
+	ID       int64  `json:"id"` // Changed from string to int64 - Jooble API returns numeric IDs
 }
 
 // GetID returns the connector ID
@@ -210,6 +210,7 @@ func (jc *JoobleConnector) transformJoobleJob(jj JoobleJob) models.JobPost {
 		SalaryMax:       nil,
 		SalaryCurrency:  "SEK", // Assuming Swedish jobs
 		IsRemote:        jc.detectRemote(jj.Title, jj.Snippet, jj.Location),
+		IsActive:        true, // All new jobs are active by default
 		URL:             jj.Link,
 		EmploymentType:  jc.mapEmploymentType(jj.Type),
 		ExperienceLevel: "Mid-level", // Jooble doesn't provide this
@@ -218,13 +219,13 @@ func (jc *JoobleConnector) transformJoobleJob(jj JoobleJob) models.JobPost {
 		Requirements:    jc.extractRequirements(jj.Title, jj.Snippet),
 		Benefits:        []string{},
 		Fields: map[string]interface{}{
-			"source":         "jooble",
-			"source_url":     jj.Link,
-			"original_id":    jobID,
-			"connector":      "jooble",
-			"jooble_source":  jj.Source,
-			"jooble_type":    jj.Type,
-			"fetched_at":     time.Now(),
+			"source":        "jooble",
+			"source_url":    jj.Link,
+			"original_id":   jobID,
+			"connector":     "jooble",
+			"jooble_source": jj.Source,
+			"jooble_type":   jj.Type,
+			"fetched_at":    time.Now(),
 		},
 	}
 }
@@ -273,7 +274,7 @@ func (jc *JoobleConnector) parseJoobleDate(dateStr string) time.Time {
 // mapEmploymentType maps Jooble type to standard format
 func (jc *JoobleConnector) mapEmploymentType(jobType string) string {
 	jobType = strings.ToLower(jobType)
-	
+
 	if strings.Contains(jobType, "full") || strings.Contains(jobType, "heltid") {
 		return "Full-time"
 	}
@@ -286,7 +287,7 @@ func (jc *JoobleConnector) mapEmploymentType(jobType string) string {
 	if strings.Contains(jobType, "temporary") || strings.Contains(jobType, "tillfällig") {
 		return "Temporary"
 	}
-	
+
 	return "Full-time" // Default
 }
 
@@ -295,14 +296,14 @@ func (jc *JoobleConnector) cleanText(text string) string {
 	// Remove HTML tags
 	re := regexp.MustCompile(`<[^>]*>`)
 	text = re.ReplaceAllString(text, "")
-	
+
 	// Trim whitespace
 	text = strings.TrimSpace(text)
-	
+
 	// Remove excessive newlines
 	re = regexp.MustCompile(`\n{3,}`)
 	text = re.ReplaceAllString(text, "\n\n")
-	
+
 	return text
 }
 
@@ -313,7 +314,7 @@ func (jc *JoobleConnector) getLastSyncTime() time.Time {
 		fmt.Println(" No previous Jooble jobs found - fetching all jobs")
 		return time.Time{}
 	}
-	
+
 	fmt.Printf(" Last Jooble job in database: %s (posted: %s)\n", job.Title, job.PostedDate.Format("2006-01-02"))
 	return job.PostedDate
 }
@@ -321,13 +322,13 @@ func (jc *JoobleConnector) getLastSyncTime() time.Time {
 // filterJobsByDate filters jobs to only include those posted after the given date
 func (jc *JoobleConnector) filterJobsByDate(jobs []models.JobPost, afterDate time.Time) []models.JobPost {
 	filtered := make([]models.JobPost, 0, len(jobs))
-	
+
 	for _, job := range jobs {
 		if job.PostedDate.After(afterDate) || job.PostedDate.Equal(afterDate) {
 			filtered = append(filtered, job)
 		}
 	}
-	
+
 	return filtered
 }
 
@@ -337,31 +338,31 @@ func (jc *JoobleConnector) formatLocation(location string) string {
 	if location == "" {
 		return "Sweden"
 	}
-	
+
 	// Add Sweden if not present
 	if !strings.Contains(strings.ToLower(location), "sweden") &&
 		!strings.Contains(strings.ToLower(location), "sverige") {
 		location = location + ", Sweden"
 	}
-	
+
 	return location
 }
 
 // detectRemote checks if job is remote
 func (jc *JoobleConnector) detectRemote(title, description, location string) bool {
 	text := strings.ToLower(title + " " + description + " " + location)
-	
+
 	remoteKeywords := []string{
 		"remote", "distans", "hemarbete", "hemifrån",
 		"work from home", "wfh", "anywhere",
 	}
-	
+
 	for _, keyword := range remoteKeywords {
 		if strings.Contains(text, keyword) {
 			return true
 		}
 	}
-	
+
 	return false
 }
 
@@ -369,9 +370,9 @@ func (jc *JoobleConnector) detectRemote(title, description, location string) boo
 func (jc *JoobleConnector) extractRequirements(title, description string) []string {
 	requirements := []string{}
 	seen := make(map[string]bool)
-	
+
 	text := strings.ToLower(title + " " + description)
-	
+
 	// Common tech skills
 	keywords := []string{
 		"Java", "Python", "JavaScript", "TypeScript", "C++", "C#", ".NET", "PHP", "Ruby", "Go", "Rust", "Swift", "Kotlin",
@@ -381,14 +382,14 @@ func (jc *JoobleConnector) extractRequirements(title, description string) []stri
 		"API", "REST", "GraphQL", "Microservices", "Agile", "Scrum",
 		"Swedish", "English", "B2B", "B2C", "SaaS",
 	}
-	
+
 	for _, keyword := range keywords {
 		if strings.Contains(text, strings.ToLower(keyword)) && !seen[keyword] {
 			requirements = append(requirements, keyword)
 			seen[keyword] = true
 		}
 	}
-	
+
 	return requirements
 }
 
@@ -396,14 +397,14 @@ func (jc *JoobleConnector) extractRequirements(title, description string) []stri
 func (jc *JoobleConnector) deduplicateJobs(jobs []models.JobPost) []models.JobPost {
 	seen := make(map[string]bool)
 	unique := []models.JobPost{}
-	
+
 	for _, job := range jobs {
 		if !seen[job.ID] {
 			seen[job.ID] = true
 			unique = append(unique, job)
 		}
 	}
-	
+
 	return unique
 }
 

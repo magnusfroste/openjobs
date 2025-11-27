@@ -263,6 +263,7 @@ func (ec *EURESConnector) transformAdzunaJob(aj AdzunaJob) models.JobPost {
 		Company:         aj.Company.DisplayName,
 		Description:     aj.Description,
 		Location:        strings.Join(aj.Location.Area, ", "),
+		IsActive:        true,           // All new jobs are active by default
 		URL:             aj.RedirectURL, // Direct application link
 		EmploymentType:  ec.mapEmploymentType(aj.ContractTime),
 		ExperienceLevel: "Mid-level", // Adzuna doesn't provide experience level
