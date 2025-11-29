@@ -271,6 +271,7 @@ func (ec *EURESConnector) transformAdzunaJob(aj AdzunaJob) models.JobPost {
 		ExpiresDate:     ec.parseAdzunaDate(aj.Created).AddDate(0, 1, 0),          // Default 1 month expiry
 		Requirements:    ec.extractRequirementsFromText(aj.Title, aj.Description), // Extract from text
 		Source:          "adzuna",
+		// CreatedAt and UpdatedAt are nil - database will set them with DEFAULT NOW()
 		Fields: map[string]interface{}{
 			"source_url":    aj.RedirectURL,
 			"original_id":   aj.ID,

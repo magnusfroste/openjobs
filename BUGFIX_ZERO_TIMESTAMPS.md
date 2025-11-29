@@ -1,62 +1,104 @@
 # Bug Fix: Zero Timestamps (0001-01-01) in created_at/updated_at
 
+## Bugfix: Zero Timestamps Breaking Job Queries
+
 ## Problem
+**21 jobs** from today's 04:00 sync were invisible in queries because they had `created_at` and `updated_at` set to `0001-01-01 00:00:00+00` (Go's zero value for `time.Time`).
 
-Jobs inserted on 2025-11-28 04:00 (and potentially earlier) had `created_at` and `updated_at` set to `0001-01-01T00:00:00Z` instead of the current timestamp.
+When querying for jobs created today (`created_at >= 2025-11-29`), these jobs didn't appear because `0001-01-01` is before 2025-11-29.
 
-### Root Cause
+## Root Cause
+When Go's `json.Marshal()` serializes a `time.Time` with zero value, it produces `"0001-01-01T00:00:00Z"`. When this JSON is sent to Supabase, it **overrides the database's `DEFAULT NOW()`** constraint.
 
-The `JobPost` struct in `pkg/models/job.go` had `CreatedAt` and `UpdatedAt` fields without `omitempty` JSON tags:
+**Why this happened:**
+1. Connectors create `models.JobPost` structs
+2. `CreatedAt` and `UpdatedAt` fields are `time.Time` (not pointers)
+3. Go initializes them to zero value: `0001-01-01 00:00:00`
+4. `json.Marshal()` includes them even with `omitempty` (zero time is not "empty")
+5. Database receives explicit timestamp and ignores `DEFAULT NOW()`
 
-```go
-CreatedAt time.Time `json:"created_at" db:"created_at"`
-UpdatedAt time.Time `json:"updated_at" db:"updated_at"`
-```
+## Solution (Your Idea!)
+**Make `created_at` and `updated_at` database-managed fields:**
+- Connectors should **never write** these fields
+- API can **read** them for queries
+- Database handles them automatically with `DEFAULT NOW()`
+- `posted_date` already tells us when the employer posted the job
 
-When connectors create jobs, they don't explicitly set these fields, so they default to Go's zero time value. This zero time was marshaled as `"0001-01-01T00:00:00Z"` and sent to Supabase, **overriding** the database's `DEFAULT NOW()` constraint.
-
-### Impact
-
-- **20 jobs** had zero timestamps (out of 813 total)
-- These jobs were invisible to queries filtering by `created_at >= <date>`
-- LazyJobs connector couldn't find these jobs
-- API endpoints filtering by date returned incomplete results
-
-## Solution
-
-### 1. Code Fix (✅ COMPLETED)
-
-Added `omitempty` to JSON tags in `pkg/models/job.go`:
+Changed `CreatedAt` and `UpdatedAt` fields in `models.JobPost` from `time.Time` to `*time.Time` (pointers):
 
 ```go
+// Before
 CreatedAt time.Time `json:"created_at,omitempty" db:"created_at"`
 UpdatedAt time.Time `json:"updated_at,omitempty" db:"updated_at"`
+
+// After  
+CreatedAt *time.Time `json:"created_at,omitempty" db:"created_at"` // DB-managed
+UpdatedAt *time.Time `json:"updated_at,omitempty" db:"updated_at"` // DB-managed
 ```
 
-Now when these fields are zero, they're excluded from the JSON payload, allowing the database's `DEFAULT NOW()` to work correctly.
+**Why pointers work:**
+- Nil pointers are **truly omitted** from JSON with `omitempty`
+- Zero `time.Time` is **not omitted** (it's a valid struct)
+- Connectors leave fields as `nil` → not sent to API → database applies `DEFAULT NOW()`
 
-### 2. Database Migration (⏳ PENDING)
+## Files Changed
+- `pkg/models/job.go` - Changed fields to `*time.Time`
+- `connectors/arbetsformedlingen/connector.go` - Removed manual timestamps
+- `connectors/eures/connector.go` - Removed manual timestamps
+- `connectors/remotive/connector.go` - Removed manual timestamps
+- `connectors/remoteok/connector.go` - Removed manual timestamps
+- `connectors/indeed/connector.go` - Removed manual timestamps
 
-Created `migrations/007_fix_zero_timestamps.sql` to fix existing jobs:
+## Testing
+```bash
+# Build to verify no compilation errors
+go build ./...
 
+# Trigger a sync to test
+curl -X POST http://localhost:8081/sync  # Arbetsförmedlingen
+
+# Check that new jobs get proper timestamps
+curl "https://cmpnqpdxhmecptcbffmw.supabase.co/rest/v1/job_posts?select=id,title,created_at&order=created_at.desc&limit=5"
+```
+
+## Impact
+- ✅ New jobs will have correct `created_at` timestamps
+- ✅ Queries by date range will work correctly  
+- ✅ Cleaner code - no manual timestamp management in connectors
+- ✅ Separation of concerns: `posted_date` = employer's date, `created_at` = OpenJobs ingestion date
+- ⚠️ Existing 21 jobs with zero timestamps need manual fix (see below)
+
+## Fix Existing Zero-Timestamp Jobs
 ```sql
+-- Update jobs with zero timestamps to use their posted_date
 UPDATE job_posts 
 SET 
-    created_at = COALESCE(
-        CASE WHEN created_at < '2000-01-01' THEN posted_date ELSE created_at END,
-        NOW()
-    ),
-    updated_at = COALESCE(
-        CASE WHEN updated_at < '2000-01-01' THEN posted_date ELSE updated_at END,
-        NOW()
-    )
-WHERE created_at < '2000-01-01' OR updated_at < '2000-01-01';
+  created_at = posted_date,
+  updated_at = posted_date
+WHERE created_at = '0001-01-01 00:00:00+00';
+
+-- Verify the fix
+SELECT COUNT(*) FROM job_posts WHERE created_at = '0001-01-01 00:00:00+00';
+-- Should return 0
 ```
 
-This uses `posted_date` as a fallback for `created_at` since it's more accurate than `NOW()`.
+## Database Schema
+The database already has the correct defaults:
+```sql
+created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+```
+
+By using pointer types with `omitempty`, we ensure these defaults are never overridden.
+
+## Key Insight
+**`created_at` vs `posted_date`:**
+- `posted_date` = When the employer originally posted the job (can be old)
+- `created_at` = When OpenJobs ingested the job into the database (always recent)
+- For incremental sync, use `created_at` to find new jobs
+- For showing users "Posted 3 days ago", use `posted_date`
 
 ## Deployment Steps
-
 1. **Deploy code fix** (rebuild and restart all plugin containers)
 2. **Run migration** (apply `007_fix_zero_timestamps.sql` to Supabase)
 3. **Verify** (check that all jobs have valid timestamps)

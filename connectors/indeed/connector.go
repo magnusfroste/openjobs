@@ -220,6 +220,7 @@ func (ic *IndeedConnector) transformIndeedJob(ij IndeedJob) models.JobPost {
 		Requirements:    ic.extractRequirements(ij),
 		Benefits:        []string{},
 		Source:          "indeed", // Primary source column
+		// CreatedAt and UpdatedAt are nil - database will set them with DEFAULT NOW()
 		Fields: map[string]interface{}{
 			"source_url":              ij.URL,
 			"original_id":             ij.JobKey,

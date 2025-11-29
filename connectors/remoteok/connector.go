@@ -142,6 +142,7 @@ func (rc *RemoteOKConnector) transformRemoteOKJob(rj RemoteOKJob) models.JobPost
 		Requirements:    rc.extractRequirements(rj),                     // Tags + keyword extraction
 		Benefits:        []string{"Remote work"},
 		Source:          "remoteok", // Primary source column
+		// CreatedAt and UpdatedAt are nil - database will set them with DEFAULT NOW()
 		Fields: map[string]interface{}{
 			"source_url":   url,
 			"original_id":  rj.ID,

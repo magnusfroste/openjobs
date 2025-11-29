@@ -154,6 +154,7 @@ func (rc *RemotiveConnector) transformRemotiveJob(rj RemotiveJob) models.JobPost
 		Requirements:    rc.extractRequirements(rj),                                // Extract from tags + description
 		Benefits:        []string{"Remote work"},
 		Source:          "remotive", // Primary source column
+		// CreatedAt and UpdatedAt are nil - database will set them with DEFAULT NOW()
 		Fields: map[string]interface{}{
 			"source_url":                  rj.URL,
 			"original_id":                 rj.ID,

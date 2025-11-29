@@ -28,8 +28,8 @@ type JobPost struct {
 	Benefits        []string               `json:"benefits" db:"benefits"`
 	Source          string                 `json:"source" db:"source"`                   // Primary ingestion source
 	Fields          map[string]interface{} `json:"fields,omitempty" db:"fields"`         // Additional metadata
-	CreatedAt       time.Time              `json:"created_at,omitempty" db:"created_at"` // When job was added to OpenJobs
-	UpdatedAt       time.Time              `json:"updated_at,omitempty" db:"updated_at"` // When job was last updated
+	CreatedAt       *time.Time             `json:"created_at,omitempty" db:"created_at"` // When job was added to OpenJobs (DB-managed)
+	UpdatedAt       *time.Time             `json:"updated_at,omitempty" db:"updated_at"` // When job was last updated (DB-managed)
 }
 
 // JobPostTraditional represents a job posting with fixed schema

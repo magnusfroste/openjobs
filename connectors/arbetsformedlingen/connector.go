@@ -269,6 +269,7 @@ func (ac *ArbetsformedlingenConnector) transformAFJob(af AFJob) models.JobPost {
 		Requirements:    ac.extractRequirements(af),
 		Benefits:        ac.extractBenefits(af),
 		Source:          "arbetsformedlingen", // Primary source column
+		// CreatedAt and UpdatedAt are nil - database will set them with DEFAULT NOW()
 		Fields: map[string]interface{}{
 			"source_url":  url,
 			"original_id": af.ID,
